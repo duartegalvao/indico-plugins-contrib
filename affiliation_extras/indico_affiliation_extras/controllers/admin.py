@@ -15,6 +15,7 @@ from marshmallow import fields, validate
 from webargs.flaskparser import abort
 
 from indico.core.db import db
+from indico.core.db.sqlalchemy.searchable import fts_matches
 from indico.core.notifications import make_email, send_email
 from indico.core.plugins import get_plugin_template_module
 from indico.modules.admin import RHAdminBase
@@ -23,13 +24,14 @@ from indico.modules.files.models.files import File
 from indico.modules.logs.models.entries import AppLogEntry, AppLogRealm, LogKind
 from indico.modules.logs.util import make_diff_log
 from indico.modules.users.models.affiliations import Affiliation
+from indico.modules.users.schemas import AffiliationSchema
 from indico.util.marshmallow import LowercaseString, ModelField, ModelList, no_relative_urls, not_empty
 from indico.util.placeholders import get_sorted_placeholders, replace_placeholders
 from indico.util.string import validate_email
 from indico.web.args import use_kwargs, use_rh_args, use_rh_kwargs
 
-from indico_affiliation_extras.models.groups import AffiliationGroup
-from indico_affiliation_extras.models.tags import AffiliationTag
+from indico_affiliation_extras.models.groups import AffiliationGroup, affiliation_group_link_table
+from indico_affiliation_extras.models.tags import AffiliationTag, affiliation_tag_link_table
 from indico_affiliation_extras.schemas import (
     AffiliationGroupArgs,
     AffiliationGroupSchema,
@@ -309,3 +311,46 @@ class RHContactListNames(RHAdminBase):
 
     def _process_GET(self):
         return jsonify(get_contact_list_names())
+
+
+class RHSearchAffiliationsExtended(RHAdminBase):
+    """Extended affiliation search with optional group/tag/country filters."""
+
+    @use_kwargs({
+        'q': fields.String(load_default=''),
+        'group_ids': fields.List(fields.Integer(), load_default=list),
+        'tag_ids': fields.List(fields.Integer(), load_default=list),
+        'country_code': fields.String(load_default=''),
+    }, location='query')
+    def _process(self, q, group_ids, tag_ids, country_code):
+        basic_fields = ('id', 'name', 'street', 'postcode', 'city', 'country_code', 'meta')
+        if not any([q, group_ids, tag_ids, country_code]):
+            return AffiliationSchema(many=True, only=basic_fields).jsonify([])
+
+        query = Affiliation.query.filter(~Affiliation.is_deleted)
+
+        if country_code:
+            query = query.filter(Affiliation.country_code == country_code)
+
+        if tag_ids:
+            query = query.filter(
+                Affiliation.id.in_(
+                    db.select(affiliation_tag_link_table.c.affiliation_id)
+                    .where(affiliation_tag_link_table.c.tag_id.in_(tag_ids))
+                )
+            )
+
+        if group_ids:
+            query = query.filter(
+                Affiliation.id.in_(
+                    db.select(affiliation_group_link_table.c.affiliation_id)
+                    .where(affiliation_group_link_table.c.group_id.in_(group_ids))
+                )
+            )
+
+        if q:
+            query = query.filter(fts_matches(Affiliation.searchable_names, q))
+
+        query = query.order_by(db.func.indico.indico_unaccent(db.func.lower(Affiliation.name)))
+
+        return AffiliationSchema(many=True, only=basic_fields).jsonify(query.all())
