@@ -22,7 +22,7 @@ import {Affiliation} from 'indico/modules/users/affiliations/types';
 
 import {GroupInfo, TagInfo} from '../types';
 import {getAffiliationSubheader} from '../util';
-import AddItemsModal from './AddItemsModal';
+import AddAffiliationsModal from './AddAffiliationsModal';
 
 export interface AffiliationListValue {
   groups: GroupInfo[];
@@ -232,17 +232,20 @@ function AffiliationListField({
           content={Translate.string('Affiliation')}
         />
       </Button.Group>
-      <AddItemsModal
-        open={affiliationModalOpen}
-        onClose={() => setAffiliationModalOpen(false)}
-        onConfirm={(list: Affiliation[]) => {
-          onChange({...value, affiliations: list});
-          markTouched();
-        }}
-        savedSelection={value.affiliations}
-        userCountURL={affiliationCountURL}
-        renderItemExtra={renderItemExtra}
-      />
+      {affiliationModalOpen && (
+        <AddAffiliationsModal
+          onClose={() => setAffiliationModalOpen(false)}
+          onConfirm={(list: Affiliation[]) => {
+            onChange({...value, affiliations: list});
+            markTouched();
+          }}
+          initialValues={value.affiliations}
+          groups={groups ?? null}
+          tags={tags ?? null}
+          userCountURL={affiliationCountURL}
+          renderItemExtra={renderItemExtra}
+        />
+      )}
     </>
   );
 }

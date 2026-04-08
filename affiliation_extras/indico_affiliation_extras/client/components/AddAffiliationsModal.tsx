@@ -5,21 +5,20 @@
 // redistribute them and/or modify them under the terms of the;
 // MIT License see the LICENSE file for more details.
 
-import groupsURL from 'indico-url:plugin_affiliation_extras.api_affiliation_groups';
 import searchAffiliationsExtendedURL from 'indico-url:plugin_affiliation_extras.api_search_affiliations_extended';
-import tagsURL from 'indico-url:plugin_affiliation_extras.api_affiliation_tags';
 
 import React, {useEffect, useState} from 'react';
 import {Button, Dropdown, Form, Grid, Icon, Input, Label, List, Loader, Modal} from 'semantic-ui-react';
 
 import {Affiliation} from 'indico/modules/users/affiliations/types';
-import {useIndicoAxios} from 'indico/react/hooks';
 import {PluralTranslate, Singular, Plural, Param, Translate} from 'indico/react/i18n';
 import {indicoAxios} from 'indico/utils/axios';
 
+import {GroupInfo, TagInfo} from '../types';
+
 import {CountryDropdown} from 'indico/react/components';
 
-import './AddItemsModal.module.scss';
+import './AddAffiliationsModal.module.scss';
 
 
 interface AffiliationWithCount extends Affiliation {
@@ -40,11 +39,12 @@ interface ResultSectionProps {
   renderItemExtra?: ((item: AffiliationWithCount) => React.ReactNode) | null;
 }
 
-interface AddItemsModalProps {
-  open: boolean;
+interface AddAffiliationsModalProps {
   onClose: () => void;
   onConfirm: (selection: AffiliationWithCount[]) => void;
-  savedSelection: AffiliationWithCount[];
+  initialValues: AffiliationWithCount[];
+  groups: GroupInfo[] | null;
+  tags: TagInfo[] | null;
   userCountURL?: string | null;
   renderItemExtra?: ((item: AffiliationWithCount) => React.ReactNode) | null;
 }
@@ -71,6 +71,7 @@ function useAffiliationSearch(filters: SearchFilters | null) {
           tag_ids: filters.tagIds,
           country_code: filters.countryCode,
         },
+        signal: controller.signal,
       })
       .then(({data}) => {
         setResults(data);
@@ -82,7 +83,7 @@ function useAffiliationSearch(filters: SearchFilters | null) {
         setIsLoading(false);
       });
     return () => controller.abort();
-  }, [JSON.stringify(filters)]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filters]);
 
   return {results, isLoading};
 }
@@ -111,21 +112,6 @@ function useUserCounts(ids: number[], userCountURL: string | null | undefined) {
   return counts;
 }
 
-/**
- * Manages the current item selection, keeping it in sync with `savedSelection`
- * each time the modal opens.
- */
-function useSelectionState(savedSelection: AffiliationWithCount[], open: boolean) {
-  const [selection, setSelection] = useState<AffiliationWithCount[]>(savedSelection);
-
-  useEffect(() => {
-    if (open) {
-      setSelection(savedSelection);
-    }
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  return [selection, setSelection] as const;
-}
 
 function ResultSection({items, isSelected, onToggle, renderItemExtra = null}: ResultSectionProps) {
   return items.length > 0 ? (
@@ -157,14 +143,15 @@ function ResultSection({items, isSelected, onToggle, renderItemExtra = null}: Re
   );
 }
 
-export default function AddItemsModal({
-  open,
+export default function AddAffiliationsModal({
   onClose,
   onConfirm,
-  savedSelection,
+  initialValues,
+  groups,
+  tags,
   userCountURL = null,
   renderItemExtra = null,
-}: AddItemsModalProps) {
+}: AddAffiliationsModalProps) {
   const [searchInput, setSearchInput] = useState('');
   const [groupIds, setGroupIds] = useState<number[]>([]);
   const [tagIds, setTagIds] = useState<number[]>([]);
@@ -172,15 +159,13 @@ export default function AddItemsModal({
   const [activeFilters, setActiveFilters] = useState<SearchFilters | null>(null);
 
   const {results, isLoading} = useAffiliationSearch(activeFilters);
-  const {data: groups} = useIndicoAxios(groupsURL({}), {manual: !open});
-  const {data: tags} = useIndicoAxios(tagsURL({}), {manual: !open});
 
   const ids = results.map(a => a.id);
   const counts = useUserCounts(ids, userCountURL);
   const affiliations: AffiliationWithCount[] = userCountURL
     ? results.map(a => ({...a, user_count: counts[String(a.id)] ?? 0}))
     : results;
-  const [selection, setSelection] = useSelectionState(savedSelection, open);
+  const [values, setValues] = useState<AffiliationWithCount[]>(initialValues);
 
   const hasSearched = activeFilters !== null;
   const hasAnyInput = Boolean(searchInput || groupIds.length || tagIds.length || countryCode);
@@ -193,31 +178,20 @@ export default function AddItemsModal({
     activeFilters.tagIds.length === tagIds.length &&
     activeFilters.tagIds.every((id, i) => id === tagIds[i]);
 
-  // Reset filter state when the modal closes.
-  useEffect(() => {
-    if (!open) {
-      setActiveFilters(null);
-      setSearchInput('');
-      setGroupIds([]);
-      setTagIds([]);
-      setCountryCode('');
-    }
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const toggle = (item: AffiliationWithCount) => {
-    setSelection(prev =>
+    setValues(prev =>
       prev.some(i => i.id === item.id) ? prev.filter(i => i.id !== item.id) : [...prev, item]
     );
   };
 
-  const isSelected = (item: AffiliationWithCount) => selection.some(i => i.id === item.id);
-  const savedIds = new Set(savedSelection.map(i => i.id));
-  const newItems = selection.filter(i => !savedIds.has(i.id));
+  const isSelected = (item: AffiliationWithCount) => values.some(i => i.id === item.id);
+  const initialIds = new Set(initialValues.map(i => i.id));
+  const newItems = values.filter(i => !initialIds.has(i.id));
   const newAdditionsCount = newItems.length;
   const registrationsCount = newItems.reduce((acc, item) => acc + (item.user_count || 0), 0);
   const hasChanges =
-    selection.some(i => !savedIds.has(i.id)) ||
-    savedSelection.some(i => !selection.some(s => s.id === i.id));
+    values.some(i => !initialIds.has(i.id)) ||
+    initialValues.some(i => !values.some(s => s.id === i.id));
 
   const applySearch = () => {
     setActiveFilters({q: searchInput, groupIds, tagIds, countryCode});
@@ -233,17 +207,12 @@ export default function AddItemsModal({
   };
 
   const handleConfirm = () => {
-    onConfirm(selection);
-    onClose();
-  };
-
-  const handleCancel = () => {
-    setSelection(savedSelection);
+    onConfirm(values);
     onClose();
   };
 
   return (
-    <Modal open={open} onClose={handleCancel} size="large" closeIcon>
+    <Modal open onClose={onClose} size="large" closeIcon>
       <Modal.Header>
         <Translate>Add Affiliations</Translate>
       </Modal.Header>
@@ -303,7 +272,7 @@ export default function AddItemsModal({
                     color: tag.color,
                     content: (
                       <>
-                        <Label size="mini" color={tag.color} empty />
+                        <Label size="mini" color={tag.color}/>
                         {' '}
                         {tag.name}
                       </>
@@ -387,7 +356,7 @@ export default function AddItemsModal({
           <Button type="button" primary onClick={handleConfirm} disabled={!hasChanges}>
             <Translate>Add</Translate>
           </Button>
-          <Button type="button" onClick={handleCancel}>
+          <Button type="button" onClick={onClose}>
             <Translate>Cancel</Translate>
           </Button>
         </div>
