@@ -272,7 +272,7 @@ export default function AddAffiliationsModal({
                     color: tag.color,
                     content: (
                       <>
-                        <Label size="mini" color={tag.color}/>
+                        <Label color={tag.color} /> <span style={{marginLeft: 10}}></span>
                         {' '}
                         {tag.name}
                       </>

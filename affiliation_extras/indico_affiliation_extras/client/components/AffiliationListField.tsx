@@ -74,7 +74,16 @@ function AffiliationListField({
     () =>
       (tags || [])
         .filter(t => !usedTagIds.has(t.id))
-        .map(t => ({value: t.id, text: `${t.code}: ${t.name}`, color: t.color})),
+        .map(t => ({
+          value: t.id,
+          text: `${t.code}: ${t.name}`,
+          content: (
+            <span>
+              <Label color={t.color} /> <span style={{marginLeft: 10}}></span>
+              {` ${t.name}`}
+            </span>
+          ),
+        })),
     [tags, usedTagIds]
   );
 
