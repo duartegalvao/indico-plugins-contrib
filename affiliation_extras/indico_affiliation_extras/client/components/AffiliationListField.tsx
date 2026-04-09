@@ -7,7 +7,7 @@
 
 import groupsURL from 'indico-url:plugin_affiliation_extras.api_affiliation_groups';
 import tagsURL from 'indico-url:plugin_affiliation_extras.api_affiliation_tags';
-import userCountURL from 'indico-url:plugin_affiliation_extras.api_affiliation_user_count';
+import extraInfoURL from 'indico-url:plugin_affiliation_extras.api_affiliation_user_count';
 
 import _ from 'lodash';
 import React, {useEffect, useMemo, useState} from 'react';
@@ -16,7 +16,6 @@ import {Button, Dropdown, Icon, Label, List, Segment} from 'semantic-ui-react';
 import {FinalField, validators} from 'indico/react/forms';
 import {useIndicoAxios} from 'indico/react/hooks';
 import {Translate} from 'indico/react/i18n';
-import {indicoAxios} from 'indico/utils/axios';
 
 import {Affiliation} from 'indico/modules/users/affiliations/types';
 
@@ -28,7 +27,7 @@ export interface AffiliationListValue {
   groups: GroupInfo[];
   tags: TagInfo[];
   affiliations: Affiliation[];
-  _userCount?: number | null;
+  _extraInfo?: number | null;
 }
 
 function AffiliationListField({
@@ -37,8 +36,8 @@ function AffiliationListField({
   onFocus,
   onBlur,
   disabled = false,
-  showInviteCount = false,
-  userCountURL: affiliationCountURL,
+  showExtraInfo = false,
+  modalExtraInfoURL,
   renderItemExtra,
 }: {
   value: AffiliationListValue;
@@ -46,8 +45,8 @@ function AffiliationListField({
   onFocus?: () => void;
   onBlur?: () => void;
   disabled?: boolean;
-  showInviteCount?: boolean;
-  userCountURL?: string;
+  showExtraInfo?: boolean;
+  modalExtraInfoURL?: string;
   renderItemExtra?: (item: Affiliation) => React.ReactNode;
 }) {
   const {data: groups} = useIndicoAxios(groupsURL({}));
@@ -87,60 +86,38 @@ function AffiliationListField({
     [tags, usedTagIds]
   );
 
-  // Stable string keys derived from the current selection IDs.  Used as useEffect
-  // dependencies so the count fetch only re-fires when the actual selection changes,
-  // not when _userCount itself changes (which would cause an infinite loop).
-  const affiliationKey = value.affiliations
-    .map(a => a.id)
-    .sort()
-    .join(',');
-  const groupKey = value.groups
-    .map(g => g.id)
-    .sort()
-    .join(',');
-  const tagKey = value.tags
-    .map(t => t.id)
-    .sort()
-    .join(',');
+  // Stable string keys so the POST only re-fires when the actual selection changes,
+  const affiliationKey = value.affiliations.map(a => a.id).sort().join(',');
+  const groupKey = value.groups.map(g => g.id).sort().join(',');
+  const tagKey = value.tags.map(t => t.id).sort().join(',');
 
   /**
-   * When `showInviteCount` is true, fetch the deduplicated user count from the
-   * backend whenever the selection changes, and store the result in `_userCount`
+   * When `showExtraInfo` is true, fetch the deduplicated user count from the
+   * backend whenever the selection changes, and store the result in `_extraInfo`
    * so that the parent's synchronous `getCount` callback can read it.
    */
-  useEffect(() => {
-    if (!showInviteCount) {
-      return;
-    }
-    const hasSelection = value.affiliations.length || value.groups.length || value.tags.length;
-    if (!hasSelection) {
-      if (value._userCount != null) {
-        onChange({...value, _userCount: null});
-      }
-      return;
-    }
-    let cancelled = false;
-    indicoAxios
-      .post(userCountURL({}), {
-        affiliation_ids: value.affiliations.map(a => a.id),
-        group_ids: value.groups.map(g => g.id),
-        tag_ids: value.tags.map(t => t.id),
-      })
-      .then(({data}) => {
-        if (!cancelled) {
-          onChange({...value, _userCount: data.count});
-        }
-      })
-      .catch(() => {
-      if (!cancelled) {
-        onChange({...value, _userCount: null});
-      }
-    });
+  const extraInfoConfig = useMemo(
+    () =>
+      showExtraInfo && (affiliationKey || groupKey || tagKey)
+        ? {
+            url: extraInfoURL({}),
+            method: 'POST',
+            data: {
+              affiliation_ids: value.affiliations.map(a => a.id),
+              group_ids: value.groups.map(g => g.id),
+              tag_ids: value.tags.map(t => t.id),
+            },
+          }
+        : null,
+    [affiliationKey, groupKey, tagKey, showExtraInfo] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const {data: extraInfoData} = useIndicoAxios(extraInfoConfig);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [affiliationKey, groupKey, tagKey, showInviteCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (extraInfoData !== null && extraInfoData !== undefined) {
+      onChange({...value, _extraInfo: extraInfoData.count});
+    }
+  }, [extraInfoData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAddGroup = (groupId: number) => {
     const group = (groups || []).find(g => g.id === groupId);
@@ -251,7 +228,7 @@ function AffiliationListField({
           initialValues={value.affiliations}
           groups={groups ?? null}
           tags={tags ?? null}
-          userCountURL={affiliationCountURL}
+          extraInfoURL={modalExtraInfoURL}
           renderItemExtra={renderItemExtra}
         />
       )}

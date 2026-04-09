@@ -7,7 +7,7 @@
 
 import searchAffiliationsExtendedURL from 'indico-url:plugin_affiliation_extras.api_search_affiliations_extended';
 
-import React, {useEffect, useState} from 'react';
+import React, {useState} from 'react';
 import {Button, Dropdown, Form, Grid, Icon, Input, Label, List, Loader, Modal} from 'semantic-ui-react';
 
 import {Affiliation} from 'indico/modules/users/affiliations/types';
@@ -21,8 +21,8 @@ import {CountryDropdown} from 'indico/react/components';
 import './AddAffiliationsModal.module.scss';
 
 
-interface AffiliationWithCount extends Affiliation {
-  user_count?: number;
+interface AffiliationWithExtraInfo extends Affiliation {
+  extraInfo?: number;
 }
 
 interface SearchFilters {
@@ -33,83 +33,20 @@ interface SearchFilters {
 }
 
 interface ResultSectionProps {
-  items: AffiliationWithCount[];
-  isSelected: (item: AffiliationWithCount) => boolean;
-  onToggle: (item: AffiliationWithCount) => void;
-  renderItemExtra?: ((item: AffiliationWithCount) => React.ReactNode) | null;
+  items: AffiliationWithExtraInfo[];
+  isSelected: (item: AffiliationWithExtraInfo) => boolean;
+  onToggle: (item: AffiliationWithExtraInfo) => void;
+  renderItemExtra?: ((item: AffiliationWithExtraInfo) => React.ReactNode) | null;
 }
 
 interface AddAffiliationsModalProps {
   onClose: () => void;
-  onConfirm: (selection: AffiliationWithCount[]) => void;
-  initialValues: AffiliationWithCount[];
+  onConfirm: (selection: AffiliationWithExtraInfo[]) => void;
+  initialValues: AffiliationWithExtraInfo[];
   groups: GroupInfo[] | null;
   tags: TagInfo[] | null;
-  userCountURL?: string | null;
-  renderItemExtra?: ((item: AffiliationWithCount) => React.ReactNode) | null;
-}
-
-/**
- * Fetches affiliations from the extended search API each time `filters` changes.
- */
-function useAffiliationSearch(filters: SearchFilters | null) {
-  const [results, setResults] = useState<AffiliationWithCount[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    if (!filters) {
-      setResults([]);
-      return;
-    }
-    const controller = new AbortController();
-    setIsLoading(true);
-    indicoAxios
-      .get<AffiliationWithCount[]>(searchAffiliationsExtendedURL({}), {
-        params: {
-          q: filters.q,
-          group_ids: filters.groupIds,
-          tag_ids: filters.tagIds,
-          country_code: filters.countryCode,
-        },
-        signal: controller.signal,
-      })
-      .then(({data}) => {
-        setResults(data);
-      })
-      .catch(() => {
-        setResults([]);
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-    return () => controller.abort();
-  }, [filters]);
-
-  return {results, isLoading};
-}
-
-/**
- * Fetches per-affiliation user counts from the given URL whenever the IDs
- * change. Returns a map of `{ [id]: count }`, or `{}` when no URL is given.
- */
-function useUserCounts(ids: number[], userCountURL: string | null | undefined) {
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  const key = ids.join(',');
-
-  useEffect(() => {
-    if (!userCountURL || !ids.length) {
-      setCounts({});
-      return;
-    }
-    indicoAxios
-      .post<Record<string, number>>(userCountURL, {affiliation_ids: ids})
-      .then(({data}) => {
-        setCounts(data);
-      })
-      .catch(() => {});
-  }, [key, userCountURL]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  return counts;
+  extraInfoURL?: string | null;
+  renderItemExtra?: ((item: AffiliationWithExtraInfo) => React.ReactNode) | null;
 }
 
 
@@ -149,7 +86,7 @@ export default function AddAffiliationsModal({
   initialValues,
   groups,
   tags,
-  userCountURL = null,
+  extraInfoURL = null,
   renderItemExtra = null,
 }: AddAffiliationsModalProps) {
   const [searchInput, setSearchInput] = useState('');
@@ -157,15 +94,9 @@ export default function AddAffiliationsModal({
   const [tagIds, setTagIds] = useState<number[]>([]);
   const [countryCode, setCountryCode] = useState('');
   const [activeFilters, setActiveFilters] = useState<SearchFilters | null>(null);
-
-  const {results, isLoading} = useAffiliationSearch(activeFilters);
-
-  const ids = results.map(a => a.id);
-  const counts = useUserCounts(ids, userCountURL);
-  const affiliations: AffiliationWithCount[] = userCountURL
-    ? results.map(a => ({...a, user_count: counts[String(a.id)] ?? 0}))
-    : results;
-  const [values, setValues] = useState<AffiliationWithCount[]>(initialValues);
+  const [affiliations, setAffiliations] = useState<AffiliationWithExtraInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [values, setValues] = useState<AffiliationWithExtraInfo[]>(initialValues);
 
   const hasSearched = activeFilters !== null;
   const hasAnyInput = Boolean(searchInput || groupIds.length || tagIds.length || countryCode);
@@ -178,23 +109,51 @@ export default function AddAffiliationsModal({
     activeFilters.tagIds.length === tagIds.length &&
     activeFilters.tagIds.every((id, i) => id === tagIds[i]);
 
-  const toggle = (item: AffiliationWithCount) => {
+  const toggle = (item: AffiliationWithExtraInfo) => {
     setValues(prev =>
       prev.some(i => i.id === item.id) ? prev.filter(i => i.id !== item.id) : [...prev, item]
     );
   };
 
-  const isSelected = (item: AffiliationWithCount) => values.some(i => i.id === item.id);
+  const isSelected = (item: AffiliationWithExtraInfo) => values.some(i => i.id === item.id);
   const initialIds = new Set(initialValues.map(i => i.id));
   const newItems = values.filter(i => !initialIds.has(i.id));
   const newAdditionsCount = newItems.length;
-  const registrationsCount = newItems.reduce((acc, item) => acc + (item.user_count || 0), 0);
+  const registrationsCount = newItems.reduce((acc, item) => acc + (item.extraInfo || 0), 0);
   const hasChanges =
     values.some(i => !initialIds.has(i.id)) ||
     initialValues.some(i => !values.some(s => s.id === i.id));
 
-  const applySearch = () => {
-    setActiveFilters({q: searchInput, groupIds, tagIds, countryCode});
+  const applySearch = async () => {
+    const newFilters = {q: searchInput, groupIds, tagIds, countryCode};
+    setActiveFilters(newFilters);
+    setIsLoading(true);
+    setAffiliations([]);
+    try {
+      const {data} = await indicoAxios.get<AffiliationWithExtraInfo[]>(
+        searchAffiliationsExtendedURL({}),
+        {
+          params: {
+            q: newFilters.q,
+            group_ids: newFilters.groupIds,
+            tag_ids: newFilters.tagIds,
+            country_code: newFilters.countryCode,
+          },
+        }
+      );
+      if (extraInfoURL && data.length) {
+        const {data: extraInfoData} = await indicoAxios
+          .post<Record<string, number>>(extraInfoURL, {affiliation_ids: data.map(a => a.id)})
+          .catch(() => ({data: {} as Record<string, number>}));
+        setAffiliations(data.map(a => ({...a, extraInfo: extraInfoData[String(a.id)] ?? 0})));
+      } else {
+        setAffiliations(data);
+      }
+    } catch {
+      setAffiliations([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -337,7 +296,7 @@ export default function AddAffiliationsModal({
                     <Param name="count" value={newAdditionsCount} /> affiliations selected
                   </Plural>
                 </PluralTranslate>
-                {userCountURL && registrationsCount > 0 && (
+                {extraInfoURL && registrationsCount > 0 && (
                   <>
                     {', '}
                     <PluralTranslate count={registrationsCount}>

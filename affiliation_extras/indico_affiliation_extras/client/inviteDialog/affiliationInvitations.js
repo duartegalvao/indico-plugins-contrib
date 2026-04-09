@@ -17,24 +17,24 @@ import FinalAffiliationList from '../components/AffiliationListField';
 const AffiliationField = ({eventId, regformId}) => {
   const countURL = userCountByIdsURL({event_id: eventId, reg_form_id: regformId});
   const renderItemExtra = item =>
-    item.user_count !== undefined
+    item.extraInfo !== undefined
       ? React.createElement(
           React.Fragment,
           null,
           ' (',
           React.createElement(
             PluralTranslate,
-            {count: item.user_count},
+            {count: item.extraInfo},
             React.createElement(
               Singular,
               null,
-              React.createElement(Param, {name: 'count', value: item.user_count}),
+              React.createElement(Param, {name: 'count', value: item.extraInfo}),
               ' user'
             ),
             React.createElement(
               Plural,
               null,
-              React.createElement(Param, {name: 'count', value: item.user_count}),
+              React.createElement(Param, {name: 'count', value: item.extraInfo}),
               ' users'
             )
           ),
@@ -44,8 +44,8 @@ const AffiliationField = ({eventId, regformId}) => {
 
   return React.createElement(FinalAffiliationList, {
     name: 'affiliations',
-    showInviteCount: true,
-    userCountURL: countURL,
+    showExtraInfo: true,
+    extraInfoURL: countURL,
     renderItemExtra,
   });
 };
@@ -55,7 +55,7 @@ const affiliationInvitations = {
   buttonLabel: 'Affiliations',
   Component: AffiliationField,
   extraFields: ['affiliations'],
-  initialValues: {affiliations: {affiliations: [], groups: [], tags: [], _userCount: null}},
+  initialValues: {affiliations: {affiliations: [], groups: [], tags: [], _extraInfo: null}},
   getCount: ({affiliations: v}) => {
     if (!v || Array.isArray(v)) {
       return 0;
@@ -65,7 +65,7 @@ const affiliationInvitations = {
     if (rowCount === 0) {
       return 0;
     }
-    return v._userCount ?? rowCount;
+    return v._extraInfo ?? rowCount;
   },
   getSubmitURL: ({eventId, regformId}) =>
     inviteByAffiliationURL({event_id: eventId, reg_form_id: regformId}),
