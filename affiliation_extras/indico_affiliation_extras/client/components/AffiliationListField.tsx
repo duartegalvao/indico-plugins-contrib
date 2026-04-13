@@ -111,7 +111,8 @@ function AffiliationListField({
         : null,
     [affiliationKey, groupKey, tagKey, showExtraInfo] // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const {data: extraInfoData} = useIndicoAxios(extraInfoConfig);
+
+  const {data: extraInfoData} = extraInfoConfig ? useIndicoAxios(extraInfoConfig) : {data: null};
 
   useEffect(() => {
     if (extraInfoData !== null && extraInfoData !== undefined) {
