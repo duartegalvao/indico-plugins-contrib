@@ -31,15 +31,15 @@
 .list {
   max-height: 490px;
   overflow-y: auto;
-}
 
-.result-item:hover {
-  cursor: pointer;
-  background: $light-gray !important;
+  .result-item:hover {
+    cursor: pointer;
+    background: $light-gray;
+  }
 }
 
 .item {
-  display: flex !important;
+  display: flex;
   align-items: center;
   min-height: 32px;
 }
@@ -56,9 +56,9 @@
 
 .button {
   cursor: pointer;
-  opacity: 0.5 !important;
+  opacity: 0.5;
 
   &:hover {
-    opacity: 1 !important;
+    opacity: 1;
   }
 }

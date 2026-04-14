@@ -9,6 +9,8 @@ import groupsURL from 'indico-url:plugin_affiliation_extras.api_affiliation_grou
 import tagsURL from 'indico-url:plugin_affiliation_extras.api_affiliation_tags';
 import extraInfoURL from 'indico-url:plugin_affiliation_extras.api_affiliation_user_count';
 
+import './AffiliationListField.module.scss';
+
 import _ from 'lodash';
 import React, {useEffect, useMemo, useState} from 'react';
 import {Button, Dropdown, Icon, Label, List, Segment} from 'semantic-ui-react';
@@ -198,7 +200,7 @@ function AffiliationListField({
           <Translate>This list is currently empty</Translate>
         )}
       </Segment>
-      <Button.Group attached="bottom">
+      <Button.Group attached="bottom" styleName="add-button-group">
         <Button icon="add" as="div" disabled />
         <AddDropdown
           text={Translate.string('Group')}
