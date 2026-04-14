@@ -89,9 +89,18 @@ function AffiliationListField({
   );
 
   // Stable string keys so the POST only re-fires when the actual selection changes,
-  const affiliationKey = value.affiliations.map(a => a.id).sort().join(',');
-  const groupKey = value.groups.map(g => g.id).sort().join(',');
-  const tagKey = value.tags.map(t => t.id).sort().join(',');
+  const affiliationKey = value.affiliations
+    .map(a => a.id)
+    .sort()
+    .join(',');
+  const groupKey = value.groups
+    .map(g => g.id)
+    .sort()
+    .join(',');
+  const tagKey = value.tags
+    .map(t => t.id)
+    .sort()
+    .join(',');
 
   /**
    * When `showExtraInfo` is true, fetch the deduplicated user count from the

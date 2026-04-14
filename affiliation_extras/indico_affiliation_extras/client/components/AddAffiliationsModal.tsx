@@ -8,7 +8,18 @@
 import searchAffiliationsExtendedURL from 'indico-url:plugin_affiliation_extras.api_search_affiliations_extended';
 
 import React, {useState} from 'react';
-import {Button, Dropdown, Form, Grid, Icon, Input, Label, List, Loader, Modal} from 'semantic-ui-react';
+import {
+  Button,
+  Dropdown,
+  Form,
+  Grid,
+  Icon,
+  Input,
+  Label,
+  List,
+  Loader,
+  Modal,
+} from 'semantic-ui-react';
 
 import {Affiliation} from 'indico/modules/users/affiliations/types';
 import {PluralTranslate, Singular, Plural, Param, Translate} from 'indico/react/i18n';
@@ -19,7 +30,6 @@ import {GroupInfo, TagInfo} from '../types';
 import {CountryDropdown} from 'indico/react/components';
 
 import './AddAffiliationsModal.module.scss';
-
 
 interface AffiliationWithExtraInfo extends Affiliation {
   extraInfo?: number;
@@ -49,7 +59,6 @@ interface AddAffiliationsModalProps {
   renderItemExtra?: ((item: AffiliationWithExtraInfo) => React.ReactNode) | null;
 }
 
-
 function ResultSection({items, isSelected, onToggle, renderItemExtra = null}: ResultSectionProps) {
   return items.length > 0 ? (
     <List divided relaxed styleName="list">
@@ -58,9 +67,7 @@ function ResultSection({items, isSelected, onToggle, renderItemExtra = null}: Re
           <div styleName="item">
             <div styleName="content">
               {item.name}
-              {renderItemExtra && (
-                <span styleName="item-count">{renderItemExtra(item)}</span>
-              )}
+              {renderItemExtra && <span styleName="item-count">{renderItemExtra(item)}</span>}
             </div>
             <div styleName="item-actions">
               {isSelected(item) ? (
@@ -231,8 +238,7 @@ export default function AddAffiliationsModal({
                     color: tag.color,
                     content: (
                       <>
-                        <Label color={tag.color} /> <span style={{marginLeft: 10}}></span>
-                        {' '}
+                        <Label color={tag.color} /> <span style={{marginLeft: 10}}></span>{' '}
                         {tag.name}
                       </>
                     ),
