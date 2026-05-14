@@ -27,7 +27,8 @@ import {indicoAxios} from 'indico/utils/axios';
 
 import {GroupInfo, TagInfo} from '../types';
 
-import {CountryDropdown} from 'indico/react/components';
+// XXX: import from 'indico/react/components' when https://github.com/indico/indico/pull/7429 is merged.
+import CountryDropdown from './CountryDropdown';
 
 import './AddAffiliationsModal.module.scss';
 
