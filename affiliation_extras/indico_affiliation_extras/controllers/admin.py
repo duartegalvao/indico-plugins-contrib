@@ -30,8 +30,8 @@ from indico.util.placeholders import get_sorted_placeholders, replace_placeholde
 from indico.util.string import validate_email
 from indico.web.args import use_kwargs, use_rh_args, use_rh_kwargs
 
-from indico_affiliation_extras.models.groups import AffiliationGroup, affiliation_group_link_table
-from indico_affiliation_extras.models.tags import AffiliationTag, affiliation_tag_link_table
+from indico_affiliation_extras.models.groups import AffiliationGroup
+from indico_affiliation_extras.models.tags import AffiliationTag
 from indico_affiliation_extras.schemas import (
     AffiliationGroupArgs,
     AffiliationGroupSchema,
@@ -328,29 +328,14 @@ class RHSearchAffiliationsExtended(RHAdminBase):
             return AffiliationSchema(many=True, only=basic_fields).jsonify([])
 
         query = Affiliation.query.filter(~Affiliation.is_deleted)
-
         if country_code:
             query = query.filter(Affiliation.country_code == country_code)
-
         if tag_ids:
-            query = query.filter(
-                Affiliation.id.in_(
-                    db.select(affiliation_tag_link_table.c.affiliation_id)
-                    .where(affiliation_tag_link_table.c.tag_id.in_(tag_ids))
-                )
-            )
-
+            query = query.filter(Affiliation.tags.any(AffiliationTag.id.in_(tag_ids)))
         if group_ids:
-            query = query.filter(
-                Affiliation.id.in_(
-                    db.select(affiliation_group_link_table.c.affiliation_id)
-                    .where(affiliation_group_link_table.c.group_id.in_(group_ids))
-                )
-            )
-
+            query = query.filter(Affiliation.groups.any(AffiliationGroup.id.in_(group_ids)))
         if q:
             query = query.filter(fts_matches(Affiliation.searchable_names, q))
-
         query = query.order_by(db.func.indico.indico_unaccent(db.func.lower(Affiliation.name)))
 
         return AffiliationSchema(many=True, only=basic_fields).jsonify(query.all())

@@ -37,8 +37,8 @@ from indico_affiliation_extras.controllers.regform import (
     RHInviteByAffiliation,
     RHManageSearchRepresentationAffiliation,
     RHRegFormAffiliationGroups,
-    RHRegFormAffiliationTags,
     RHRegFormAffiliations,
+    RHRegFormAffiliationTags,
     RHSearchRepresentationAffiliation,
 )
 

@@ -9,8 +9,6 @@ import groupsURL from 'indico-url:plugin_affiliation_extras.api_affiliation_grou
 import tagsURL from 'indico-url:plugin_affiliation_extras.api_affiliation_tags';
 import extraInfoURL from 'indico-url:plugin_affiliation_extras.api_affiliation_user_count';
 
-import './AffiliationListField.module.scss';
-
 import _ from 'lodash';
 import React, {useEffect, useMemo, useState} from 'react';
 import {Button, Dropdown, Icon, Label, List, Segment} from 'semantic-ui-react';
@@ -18,12 +16,13 @@ import {Button, Dropdown, Icon, Label, List, Segment} from 'semantic-ui-react';
 import {FinalField, validators} from 'indico/react/forms';
 import {useIndicoAxios} from 'indico/react/hooks';
 import {Translate} from 'indico/react/i18n';
-
 import {Affiliation} from 'indico/modules/users/affiliations/types';
 
 import {GroupInfo, TagInfo} from '../types';
 import {getAffiliationSubheader} from '../util';
 import AddAffiliationsModal from './AddAffiliationsModal';
+
+import './AffiliationListField.module.scss';
 
 export interface AffiliationListValue {
   groups: GroupInfo[];
