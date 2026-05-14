@@ -13,7 +13,6 @@ from indico.core.db import db
 from indico.core.marshmallow import mm
 from indico.modules.users.models.affiliations import Affiliation
 from indico.modules.users.schemas import AffiliationSchema as UserAffiliationSchema
-from indico.modules.users.schemas import BasicUserSchema
 from indico.util.i18n import _
 from indico.util.marshmallow import LowercaseString, ModelField, ModelList, SortedList, not_empty
 from indico.util.string import validate_email
@@ -197,6 +196,8 @@ class AffiliationWithUsersSchema(mm.Schema):
     users = fields.Method('_get_users')
 
     def _get_users(self, obj):
+        from indico.modules.users.schemas import BasicUserSchema
+
         return BasicUserSchema(many=True).dump(obj.user_affiliations.all())
 
 
