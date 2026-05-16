@@ -10,6 +10,7 @@ from indico.modules.users.models.affiliations import Affiliation
 from indico.util.string import format_repr
 
 from indico_affiliation_extras.models.groups import AffiliationGroup
+from indico_affiliation_extras.models.roles import RoleCatalog
 
 
 list_affiliation_link_table = db.Table(
@@ -76,6 +77,12 @@ class AffiliationList(db.Model):
         index=True,
     )
     position = db.Column(db.Integer, nullable=False)
+    role_catalog_id = db.Column(
+        db.Integer,
+        db.ForeignKey('plugin_affiliation_extras.role_catalogs.id', ondelete='SET NULL'),
+        index=True,
+        nullable=True,
+    )
     name = db.Column(db.String, nullable=False, default='')
     is_enabled = db.Column(db.Boolean, nullable=False, default=True)
 
@@ -117,6 +124,12 @@ class AffiliationList(db.Model):
         collection_class=set,
         lazy=True,
         backref=db.backref('lists', collection_class=set, lazy=True),
+    )
+    role_catalog = db.relationship(
+        RoleCatalog,
+        lazy=True,
+        foreign_keys=role_catalog_id,
+        backref=db.backref('affiliation_lists', collection_class=set, lazy=True),
     )
 
     def __repr__(self):
