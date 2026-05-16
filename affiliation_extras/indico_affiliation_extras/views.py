@@ -6,6 +6,7 @@
 # MIT License see the LICENSE file for more details.
 
 from indico.core.plugins import WPJinjaMixinPlugin
+from indico.modules.admin.views import WPAdmin
 from indico.modules.categories.views import WPCategoryManagement
 from indico.modules.events.management.views import WPEventManagement
 from indico.web.flask.util import url_for
@@ -20,3 +21,7 @@ class WPCategoryAffiliations(WPJinjaMixinPlugin, WPCategoryManagement):
         if not management:
             return category.url
         return url_for('plugin_affiliation_extras.manage_affiliations', category)
+
+
+class WPRoleCatalogsAdmin(WPJinjaMixinPlugin, WPAdmin):
+    sidemenu_option = 'affiliation_role_catalogs'

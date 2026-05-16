@@ -5,8 +5,6 @@
 # redistribute them and/or modify them under the terms of the;
 # MIT License see the LICENSE file for more details.
 
-import re
-
 from flask import jsonify, request, session
 from werkzeug.exceptions import Forbidden
 
@@ -34,16 +32,14 @@ from indico_affiliation_extras.schemas import (
 from indico_affiliation_extras.settings import category_settings, event_settings
 from indico_affiliation_extras.util import (
     get_all_catalogs,
+    get_clone_name,
     get_default_catalog,
     get_explicit_default_catalog,
     get_inherited_catalogs,
-    populate_catalog_lists,
+    populate_affiliation_catalog_lists,
     resolve_affiliations,
 )
 from indico_affiliation_extras.views import WPCategoryAffiliations, WPEventAffiliations
-
-
-TITLE_ENUM_RE = re.compile(r'^(.*) \((\d+)\)$')
 
 
 class AffiliationCatalogListMixin:
@@ -135,7 +131,7 @@ class RHCreateAffiliationCatalog(AffiliationAreaMixin, RHAffiliationCatalogsMana
         catalog = AffiliationCatalog(**self.target_dict, **data)
         db.session.add(catalog)
         db.session.flush()
-        populate_catalog_lists(catalog, lists)
+        populate_affiliation_catalog_lists(catalog, lists)
         catalog.owner.log(
             catalog.log_realm,
             LogKind.positive,
@@ -152,7 +148,7 @@ class RHEditAffiliationCatalog(RHAffiliationCatalogMixin, RHAffiliationCatalogsM
     def _process(self, data):
         lists = data.pop('lists')
         changes = self.catalog.populate_from_dict(data)
-        list_changes, list_log_fields = populate_catalog_lists(self.catalog, lists)
+        list_changes, list_log_fields = populate_affiliation_catalog_lists(self.catalog, lists)
         if list_changes:
             changes.update(list_changes)
         if changes:
@@ -194,25 +190,7 @@ class RHCloneAffiliationCatalog(RHAffiliationCatalogMixin, RHAffiliationCatalogs
     ALLOW_INHERITED = True
 
     def _process(self):
-        name = self.catalog.name
-        max_index = 0
-
-        if m := TITLE_ENUM_RE.match(name):
-            name = m.group(1)
-            max_index = int(m.group(2))
-
-        matches = {tpl for tpl in self.target.affiliation_catalogs if tpl.name.startswith(name)}
-        found = False
-        for match in matches:
-            if m := TITLE_ENUM_RE.match(match.name):
-                found = True
-                index = int(m.group(2))
-                max_index = max(index, max_index)
-            elif match.name == name:
-                found = True
-        if found:
-            name = f'{name} ({max_index + 1})'
-
+        name = get_clone_name(self.catalog.name, (catalog.name for catalog in self.target.affiliation_catalogs))
         new_catalog = AffiliationCatalog(**self.target_dict, name=name)
         db.session.add(new_catalog)
         db.session.flush()
@@ -227,7 +205,7 @@ class RHCloneAffiliationCatalog(RHAffiliationCatalogMixin, RHAffiliationCatalogs
             }
             for lst in self.catalog.lists
         ]
-        populate_catalog_lists(new_catalog, lists)
+        populate_affiliation_catalog_lists(new_catalog, lists)
         new_catalog.owner.log(
             new_catalog.log_realm,
             LogKind.positive,

@@ -16,6 +16,7 @@ from webargs.flaskparser import abort
 
 from indico.core.db import db
 from indico.core.db.sqlalchemy.searchable import fts_matches
+from indico.core.errors import UserValueError
 from indico.core.notifications import make_email, send_email
 from indico.core.plugins import get_plugin_template_module
 from indico.modules.admin import RHAdminBase
@@ -28,22 +29,28 @@ from indico.modules.users.schemas import AffiliationSchema
 from indico.util.marshmallow import LowercaseString, ModelField, ModelList, no_relative_urls, not_empty
 from indico.util.placeholders import get_sorted_placeholders, replace_placeholders
 from indico.util.string import validate_email
-from indico.web.args import use_kwargs, use_rh_args, use_rh_kwargs
+from indico.web.args import use_args, use_kwargs, use_rh_args, use_rh_kwargs
 
 from indico_affiliation_extras.models.groups import AffiliationGroup
+from indico_affiliation_extras.models.roles import AffiliationRole, RoleCatalog
 from indico_affiliation_extras.models.tags import AffiliationTag
 from indico_affiliation_extras.schemas import (
     AffiliationGroupArgs,
     AffiliationGroupSchema,
     AffiliationTagArgs,
     AffiliationTagSchema,
+    RoleCatalogArgs,
+    RoleCatalogSchema,
 )
 from indico_affiliation_extras.util import (
     get_allowed_sender_emails,
+    get_clone_name,
     get_contact_list_names,
     populate_memberships,
+    populate_role_catalog_roles,
     prepare_inline_images,
 )
+from indico_affiliation_extras.views import WPRoleCatalogsAdmin
 
 
 class RHEmailRepresentativesBase(RHAdminBase):
@@ -170,6 +177,129 @@ class RHEmailRepresentativesImageUpload(UploadFileMixin, RHAdminBase):
     def validate_file(self, file):
         content_type = mimetypes.guess_type(file.filename)[0] or file.mimetype or 'application/octet-stream'
         return content_type.startswith('image/')
+
+
+class RHRoleCatalogsAdminPage(RHAdminBase):
+    """Management page for global affiliation role catalogs."""
+
+    def _process(self):
+        catalogs = RoleCatalog.query.order_by(db.func.indico.indico_unaccent(db.func.lower(RoleCatalog.name))).all()
+        return WPRoleCatalogsAdmin.render_template(
+            'manage_role_catalogs.html',
+            role_catalogs=RoleCatalogSchema(many=True).dump(catalogs),
+        )
+
+
+class RHRoleCatalogs(RHAdminBase):
+    """Return and create global affiliation role catalogs."""
+
+    def _process_GET(self):
+        catalogs = RoleCatalog.query.order_by(db.func.indico.indico_unaccent(db.func.lower(RoleCatalog.name))).all()
+        return RoleCatalogSchema(many=True).jsonify(catalogs)
+
+    @use_args(RoleCatalogArgs)
+    def _process_POST(self, data):
+        roles = data.pop('roles')
+        catalog = RoleCatalog(name=data['name'].strip())
+        db.session.add(catalog)
+        db.session.flush()
+        try:
+            populate_role_catalog_roles(catalog, roles)
+        except UserValueError as exc:
+            abort(422, messages={'roles': [str(exc)]})
+        AppLogEntry.log(
+            AppLogRealm.admin,
+            LogKind.positive,
+            'Affiliation Role Catalogs',
+            f'Affiliation role catalog "{catalog.name}" created',
+            session.user,
+            meta={'role_catalog_id': catalog.id},
+        )
+        return RoleCatalogSchema().jsonify(catalog), 201
+
+
+class RHRoleCatalog(RHAdminBase):
+    """CRUD operations on a single global affiliation role catalog."""
+
+    @use_kwargs(
+        {'catalog': ModelField(RoleCatalog, required=True, data_key='role_catalog_id')},
+        location='view_args',
+    )
+    def _process_args(self, catalog):
+        RHAdminBase._process_args(self)
+        self.catalog = catalog
+
+    def _process_GET(self):
+        return RoleCatalogSchema().jsonify(self.catalog)
+
+    @use_args(RoleCatalogArgs)
+    def _process_PATCH(self, data):
+        roles = data.pop('roles')
+        changes = self.catalog.populate_from_dict({'name': data['name'].strip()})
+        try:
+            changes.update(populate_role_catalog_roles(self.catalog, roles))
+        except UserValueError as exc:
+            abort(422, messages={'roles': [str(exc)]})
+        if changes:
+            log_fields = {'name': 'Name', 'roles': {'title': 'Roles', 'type': 'list'}}
+            log_fields.update({
+                key: {'title': 'Role', 'type': 'list'} for key in changes if key.startswith('roles_item_')
+            })
+            AppLogEntry.log(
+                AppLogRealm.admin,
+                LogKind.change,
+                'Affiliation Role Catalogs',
+                f'Affiliation role catalog "{self.catalog.name}" modified',
+                session.user,
+                data={'Changes': make_diff_log(changes, log_fields)},
+                meta={'role_catalog_id': self.catalog.id},
+            )
+        db.session.flush()
+        return RoleCatalogSchema().jsonify(self.catalog)
+
+    def _process_DELETE(self):
+        AppLogEntry.log(
+            AppLogRealm.admin,
+            LogKind.negative,
+            'Affiliation Role Catalogs',
+            f'Affiliation role catalog "{self.catalog.name}" deleted',
+            session.user,
+            meta={'role_catalog_id': self.catalog.id},
+        )
+        db.session.delete(self.catalog)
+        db.session.flush()
+        return '', 204
+
+
+class RHCloneRoleCatalog(RHAdminBase):
+    """Clone a global affiliation role catalog."""
+
+    @use_kwargs(
+        {'catalog': ModelField(RoleCatalog, required=True, data_key='role_catalog_id')},
+        location='view_args',
+    )
+    def _process_args(self, catalog):
+        RHAdminBase._process_args(self)
+        self.catalog = catalog
+
+    def _process(self):
+        name = get_clone_name(self.catalog.name, (catalog.name for catalog in RoleCatalog.query))
+        new_catalog = RoleCatalog(name=name)
+        db.session.add(new_catalog)
+        db.session.flush()
+        for role in self.catalog.roles:
+            new_catalog.roles.append(AffiliationRole(code=role.code, name=role.name, position=role.position))
+        db.session.flush()
+        AppLogEntry.log(
+            AppLogRealm.admin,
+            LogKind.positive,
+            'Affiliation Role Catalogs',
+            f'Affiliation role catalog "{new_catalog.name}" created',
+            session.user,
+            data={'Cloned from': self.catalog.name},
+            meta={'role_catalog_id': new_catalog.id},
+        )
+        return RoleCatalogSchema().jsonify(new_catalog)
 
 
 class RHAffiliationGroups(RHAdminBase):

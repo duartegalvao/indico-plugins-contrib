@@ -22,6 +22,7 @@ from indico_affiliation_extras.models.catalogs import AffiliationCatalog
 from indico_affiliation_extras.models.contacts import AffiliationContactList
 from indico_affiliation_extras.models.groups import AffiliationGroup
 from indico_affiliation_extras.models.lists import AffiliationList
+from indico_affiliation_extras.models.roles import AffiliationRole, RoleCatalog
 from indico_affiliation_extras.models.tags import AffiliationTag
 
 
@@ -197,6 +198,44 @@ class AffiliationCatalogSchema(mm.SQLAlchemyAutoSchema):
 
     owner = fields.Nested(OwnerDataSchema)
     lists = fields.List(fields.Nested(AffiliationListSchema))
+
+
+class AffiliationRoleSchema(mm.SQLAlchemyAutoSchema):
+    class Meta:
+        model = AffiliationRole
+        fields = ('id', 'code', 'name', 'position')
+
+
+class RoleCatalogAffiliationRoleArgs(mm.Schema):
+    role_link = ModelField(AffiliationRole, data_key='id', load_default=None, allow_none=True, load_only=True)
+    code = fields.String(required=True, validate=not_empty)
+    name = fields.String(required=True, validate=not_empty)
+    position = fields.Integer(required=True)
+
+
+class RoleCatalogArgs(mm.Schema):
+    class Meta:
+        unknown = EXCLUDE
+
+    name = fields.String(required=True, validate=not_empty)
+    roles = fields.List(fields.Nested(RoleCatalogAffiliationRoleArgs), required=True, validate=not_empty)
+
+    @validates('roles')
+    def _check_for_unique_role_codes(self, roles, **kwargs):
+        codes = [role['code'].strip().lower() for role in roles]
+        if len(codes) != len(set(codes)):
+            raise ValidationError('Role codes must be unique within a catalog')
+        role_ids = [role['role_link'].id for role in roles if role.get('role_link') is not None]
+        if len(role_ids) != len(set(role_ids)):
+            raise ValidationError('Role IDs must be unique')
+
+
+class RoleCatalogSchema(mm.SQLAlchemyAutoSchema):
+    class Meta:
+        model = RoleCatalog
+        fields = ('id', 'name', 'roles')
+
+    roles = fields.List(fields.Nested(AffiliationRoleSchema))
 
 
 class AffiliationWithUsersSchema(mm.Schema):

@@ -1,0 +1,15 @@
+{% extends 'layout/admin_page.html' %}
+
+{% block title %}
+    {% trans %}Affiliation role catalogs{% endtrans %}
+{% endblock %}
+
+{% block content %}
+    <div id="affiliation-role-catalogs"></div>
+    <script>
+        setupRoleCatalogs(
+            document.querySelector('#affiliation-role-catalogs'),
+            {{ role_catalogs | tojson }}
+        );
+    </script>
+{% endblock %}

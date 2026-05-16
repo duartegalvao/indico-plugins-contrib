@@ -8,7 +8,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 
-import CatalogManagement from './CatalogManagement';
+import AffiliationCatalogManagement from './AffiliationCatalogManagement';
 
 export default function setupAffiliationCatalogs(
   elem,
@@ -19,7 +19,7 @@ export default function setupAffiliationCatalogs(
   targetLocator
 ) {
   ReactDOM.render(
-    <CatalogManagement
+    <AffiliationCatalogManagement
       initialState={{ownCatalogs, inheritedCatalogs, defaultCatalogId, explicitDefaultCatalogId}}
       targetLocator={targetLocator}
     />,

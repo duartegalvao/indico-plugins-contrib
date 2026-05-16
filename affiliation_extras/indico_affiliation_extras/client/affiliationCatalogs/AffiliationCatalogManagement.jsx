@@ -23,8 +23,8 @@ import {routerPathFromFlask, useNumericParam} from 'indico/react/util/routing';
 import {Translate} from 'indico/react/i18n';
 import {indicoAxios} from 'indico/utils/axios';
 
-import CatalogDetailPane from './CatalogDetailPane';
-import CatalogListPane from './CatalogListPane';
+import AffiliationCatalogDetailPane from './AffiliationCatalogDetailPane';
+import AffiliationCatalogListPane from './AffiliationCatalogListPane';
 
 function reducer(state, action) {
   switch (action.type) {
@@ -64,7 +64,7 @@ function reducer(state, action) {
   }
 }
 
-function CatalogEditRoute({catalogs, dispatch, targetLocator}) {
+function AffiliationCatalogEditRoute({catalogs, dispatch, targetLocator}) {
   const catalogId = useNumericParam('catalog_id');
   const catalog = catalogs.find(p => p.id === catalogId);
 
@@ -83,12 +83,16 @@ function CatalogEditRoute({catalogs, dispatch, targetLocator}) {
   return (
     <>
       <ManagementPageBackButton url={catalogListURL(targetLocator)} />
-      <CatalogDetailPane catalog={catalog} targetLocator={targetLocator} onSubmit={saveCatalog} />
+      <AffiliationCatalogDetailPane
+        catalog={catalog}
+        targetLocator={targetLocator}
+        onSubmit={saveCatalog}
+      />
     </>
   );
 }
 
-function CatalogCreateRoute({dispatch, targetLocator}) {
+function AffiliationCatalogCreateRoute({dispatch, targetLocator}) {
   const history = useHistory();
 
   const createCatalog = async payload => {
@@ -107,7 +111,7 @@ function CatalogCreateRoute({dispatch, targetLocator}) {
   return (
     <>
       <ManagementPageBackButton url={catalogListURL(targetLocator)} />
-      <CatalogDetailPane
+      <AffiliationCatalogDetailPane
         catalog={null}
         targetLocator={targetLocator}
         isNew
@@ -117,7 +121,7 @@ function CatalogCreateRoute({dispatch, targetLocator}) {
   );
 }
 
-export default function CatalogManagement({initialState, targetLocator}) {
+export default function AffiliationCatalogManagement({initialState, targetLocator}) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const targetIdParams = Object.keys(targetLocator);
 
@@ -139,13 +143,15 @@ export default function CatalogManagement({initialState, targetLocator}) {
           <Route
             exact
             path={routerPathFromFlask(catalogNewURL, targetIdParams)}
-            render={() => <CatalogCreateRoute dispatch={dispatch} targetLocator={targetLocator} />}
+            render={() => (
+              <AffiliationCatalogCreateRoute dispatch={dispatch} targetLocator={targetLocator} />
+            )}
           />
           <Route
             exact
             path={routerPathFromFlask(catalogDetailURL, [...targetIdParams, 'catalog_id'])}
             render={() => (
-              <CatalogEditRoute
+              <AffiliationCatalogEditRoute
                 catalogs={state.ownCatalogs}
                 dispatch={dispatch}
                 targetLocator={targetLocator}
@@ -156,7 +162,11 @@ export default function CatalogManagement({initialState, targetLocator}) {
             exact
             path={routerPathFromFlask(catalogListURL, targetIdParams)}
             render={() => (
-              <CatalogListPane dispatch={dispatch} targetLocator={targetLocator} {...state} />
+              <AffiliationCatalogListPane
+                dispatch={dispatch}
+                targetLocator={targetLocator}
+                {...state}
+              />
             )}
           />
         </Switch>
@@ -165,18 +175,18 @@ export default function CatalogManagement({initialState, targetLocator}) {
   );
 }
 
-CatalogEditRoute.propTypes = {
+AffiliationCatalogEditRoute.propTypes = {
   catalogs: PropTypes.array.isRequired,
   dispatch: PropTypes.func.isRequired,
   targetLocator: PropTypes.object.isRequired,
 };
 
-CatalogCreateRoute.propTypes = {
+AffiliationCatalogCreateRoute.propTypes = {
   dispatch: PropTypes.func.isRequired,
   targetLocator: PropTypes.object.isRequired,
 };
 
-CatalogManagement.propTypes = {
+AffiliationCatalogManagement.propTypes = {
   initialState: PropTypes.shape({
     ownCatalogs: PropTypes.array,
     inheritedCatalogs: PropTypes.array,

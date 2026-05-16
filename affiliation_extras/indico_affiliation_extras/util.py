@@ -5,6 +5,8 @@
 # redistribute them and/or modify them under the terms of the;
 # MIT License see the LICENSE file for more details.
 
+import re
+from collections.abc import Callable, Iterable
 from copy import copy
 from email.mime.image import MIMEImage
 from email.utils import formataddr, make_msgid
@@ -31,8 +33,12 @@ from indico_affiliation_extras.models.catalogs import AffiliationCatalog
 from indico_affiliation_extras.models.contacts import AffiliationContactList
 from indico_affiliation_extras.models.groups import AffiliationGroup
 from indico_affiliation_extras.models.lists import AffiliationList
+from indico_affiliation_extras.models.roles import AffiliationRole, RoleCatalog
 from indico_affiliation_extras.models.tags import AffiliationTag
 from indico_affiliation_extras.settings import category_settings, event_settings
+
+
+TITLE_ENUM_RE = re.compile(r'^(.*) \((\d+)\)$')
 
 
 class _Memberships(TypedDict):
@@ -227,7 +233,7 @@ def populate_contacts(affiliation: Affiliation, contact_lists: list[dict]) -> tu
     return changes, log_fields
 
 
-def serialize_catalog_lists(catalog_lists: list[AffiliationList]) -> dict[int, dict]:
+def serialize_affiliation_catalog_lists(catalog_lists: list[AffiliationList]) -> dict[int, dict]:
     return {
         item.id: {
             'name': item.name or '(unnamed list)',
@@ -241,7 +247,7 @@ def serialize_catalog_lists(catalog_lists: list[AffiliationList]) -> dict[int, d
     }
 
 
-_CATALOG_LIST_LOG_FIELDS = (
+_AFFILIATION_CATALOG_LIST_LOG_FIELDS = (
     ('name', 'Name', 'string'),
     ('is_enabled', 'Enabled', 'bool'),
     ('position', 'Position', 'number'),
@@ -251,7 +257,7 @@ _CATALOG_LIST_LOG_FIELDS = (
 )
 
 
-def _get_catalog_list_log_value(data: dict, attr: str) -> object:
+def _get_affiliation_catalog_list_log_value(data: dict, attr: str) -> object:
     if attr in {'groups', 'tags', 'affiliations'}:
         return data.get(attr, [])
     if attr == 'name':
@@ -259,39 +265,64 @@ def _get_catalog_list_log_value(data: dict, attr: str) -> object:
     return data.get(attr)
 
 
-def _has_catalog_list_log_value(value: object) -> bool:
+def _has_affiliation_catalog_list_log_value(value: object) -> bool:
     if isinstance(value, (list, tuple, set)):
         return bool(value)
     return value not in (None, '')
 
 
-def _apply_catalog_lists(catalog: AffiliationCatalog, catalog_lists: list[dict]) -> None:
-    existing_by_id = {item.id: item for item in catalog.lists}
+def _apply_catalog_child_items(
+    collection,
+    data: list[dict],
+    *,
+    link_key: str,
+    create_item: Callable[[], object],
+    update_item: Callable[[object, dict], None],
+    error_message: str,
+) -> None:
+    existing_by_id = {item.id: item for item in collection}
     touched_ids = set()
 
-    for list_data in catalog_lists:
-        list_obj = list_data.get('list_link')
-        if list_obj is None:
-            list_obj = AffiliationList(catalog=catalog)
-            db.session.add(list_obj)
+    for item_data in data:
+        item = item_data.get(link_key)
+        if item is None:
+            item = create_item()
+            db.session.add(item)
         else:
-            if list_obj.id not in existing_by_id:
-                raise UserValueError('List does not belong to this catalog')
-            touched_ids.add(list_obj.id)
-        list_obj.name = list_data['name'].strip()
-        list_obj.is_enabled = list_data['is_enabled']
-        list_obj.position = list_data['position']
-        list_obj.groups = list_data['groups']
-        list_obj.tags = list_data['tags']
-        list_obj.affiliations = list_data['affiliations']
+            if item.id not in existing_by_id:
+                raise UserValueError(error_message)
+            touched_ids.add(item.id)
+        update_item(item, item_data)
 
-    for list_id, list_obj in existing_by_id.items():
-        if list_id not in touched_ids:
-            catalog.lists.remove(list_obj)
-            db.session.delete(list_obj)
+    for item_id, item in existing_by_id.items():
+        if item_id not in touched_ids:
+            collection.remove(item)
+            db.session.delete(item)
 
 
-def _get_catalog_list_changes(old_lists: dict[int, dict], new_lists: dict[int, dict]) -> tuple[_Changes, _LogFields]:
+def _update_affiliation_catalog_list(list_obj: AffiliationList, list_data: dict) -> None:
+    list_obj.name = list_data['name'].strip()
+    list_obj.is_enabled = list_data['is_enabled']
+    list_obj.position = list_data['position']
+    list_obj.groups = list_data['groups']
+    list_obj.tags = list_data['tags']
+    list_obj.affiliations = list_data['affiliations']
+
+
+def _apply_affiliation_catalog_lists(catalog: AffiliationCatalog, catalog_lists: list[dict]) -> None:
+    _apply_catalog_child_items(
+        catalog.lists,
+        catalog_lists,
+        link_key='list_link',
+        create_item=lambda: AffiliationList(catalog=catalog),
+        update_item=_update_affiliation_catalog_list,
+        error_message='List does not belong to this catalog',
+    )
+
+
+def _get_affiliation_catalog_list_changes(
+    old_lists: dict[int, dict], new_lists: dict[int, dict]
+) -> tuple[_Changes, _LogFields]:
     if old_lists == new_lists:
         return {}, {}
 
@@ -307,14 +338,14 @@ def _get_catalog_list_changes(old_lists: dict[int, dict], new_lists: dict[int, d
         old_data = old_lists.get(id_, {})
         new_data = new_lists.get(id_, {})
         name = new_data.get('name') or old_data.get('name') or '(unnamed list)'
-        for attr, title, type_ in _CATALOG_LIST_LOG_FIELDS:
-            old_value = _get_catalog_list_log_value(old_data, attr)
-            new_value = _get_catalog_list_log_value(new_data, attr)
+        for attr, title, type_ in _AFFILIATION_CATALOG_LIST_LOG_FIELDS:
+            old_value = _get_affiliation_catalog_list_log_value(old_data, attr)
+            new_value = _get_affiliation_catalog_list_log_value(new_data, attr)
             if old_value == new_value:
                 continue
-            if not old_data and not _has_catalog_list_log_value(new_value):
+            if not old_data and not _has_affiliation_catalog_list_log_value(new_value):
                 continue
-            if not new_data and not _has_catalog_list_log_value(old_value):
+            if not new_data and not _has_affiliation_catalog_list_log_value(old_value):
                 continue
             key = f'lists_item_{id_}_{attr}'
             changes[key] = (old_value, new_value)
@@ -322,12 +353,79 @@ def _get_catalog_list_changes(old_lists: dict[int, dict], new_lists: dict[int, d
     return changes, log_fields
 
 
-def populate_catalog_lists(catalog: AffiliationCatalog, catalog_lists: list[dict]) -> tuple[_Changes, _LogFields]:
-    old_lists = serialize_catalog_lists(catalog.lists)
-    _apply_catalog_lists(catalog, catalog_lists)
+def populate_affiliation_catalog_lists(
+    catalog: AffiliationCatalog, catalog_lists: list[dict]
+) -> tuple[_Changes, _LogFields]:
+    old_lists = serialize_affiliation_catalog_lists(catalog.lists)
+    _apply_affiliation_catalog_lists(catalog, catalog_lists)
     db.session.flush()
-    new_lists = serialize_catalog_lists(catalog.lists)
-    return _get_catalog_list_changes(old_lists, new_lists)
+    new_lists = serialize_affiliation_catalog_lists(catalog.lists)
+    return _get_affiliation_catalog_list_changes(old_lists, new_lists)
+
+
+def serialize_role_catalog_roles(roles: list[AffiliationRole]) -> dict[int, dict]:
+    return {
+        role.id: {
+            'code': role.code,
+            'name': role.name,
+            'position': role.position,
+        }
+        for role in roles
+    }
+
+
+def _format_role_log_lines(data: dict) -> list[str]:
+    if not data:
+        return []
+    return [
+        f'Code: {data.get("code", "")}',
+        f'Name: {data.get("name", "")}',
+        f'Position: {data.get("position", "")}',
+    ]
+
+
+def _update_role_catalog_role(role: AffiliationRole, role_data: dict) -> None:
+    role.code = role_data['code'].strip()
+    role.name = role_data['name'].strip()
+    role.position = role_data['position']
+
+
+def _apply_role_catalog_roles(catalog: RoleCatalog, roles: list[dict]) -> None:
+    _apply_catalog_child_items(
+        catalog.roles,
+        roles,
+        link_key='role_link',
+        create_item=lambda: AffiliationRole(catalog=catalog),
+        update_item=_update_role_catalog_role,
+        error_message='Role does not belong to this catalog',
+    )
+
+
+def _get_role_catalog_role_changes(
+    old_roles: dict[int, dict], new_roles: dict[int, dict]
+) -> dict[str, tuple[object, object]]:
+    if old_roles == new_roles:
+        return {}
+
+    changes = {}
+    old_summary = sorted((role['name'] for role in old_roles.values()), key=str.lower)
+    new_summary = sorted((role['name'] for role in new_roles.values()), key=str.lower)
+    if old_summary != new_summary:
+        changes['roles'] = (old_summary, new_summary)
+
+    for id_ in old_roles.keys() | new_roles.keys():
+        old_lines = _format_role_log_lines(old_roles.get(id_, {}))
+        new_lines = _format_role_log_lines(new_roles.get(id_, {}))
+        if old_lines != new_lines:
+            changes[f'roles_item_{id_}'] = (old_lines, new_lines)
+    return changes
+
+
+def populate_role_catalog_roles(catalog: RoleCatalog, roles: list[dict]) -> dict[str, tuple[object, object]]:
+    old_roles = serialize_role_catalog_roles(catalog.roles)
+    _apply_role_catalog_roles(catalog, roles)
+    db.session.flush()
+    return _get_role_catalog_role_changes(old_roles, serialize_role_catalog_roles(catalog.roles))
 
 
 def resolve_affiliations(
@@ -362,6 +460,24 @@ def resolve_object_path(obj: dict | list, path: str) -> str:
     if isinstance(obj, scalar_types):
         return str(obj)
     return ''
+
+
+def get_clone_name(name: str, existing_names: Iterable[str]) -> str:
+    max_index = 0
+    base_name = name
+
+    if m := TITLE_ENUM_RE.match(name):
+        base_name = m.group(1)
+        max_index = int(m.group(2))
+
+    found = False
+    for existing_name in existing_names:
+        if existing_name == base_name:
+            found = True
+        elif (m := TITLE_ENUM_RE.match(existing_name)) and m.group(1) == base_name:
+            found = True
+            max_index = max(max_index, int(m.group(2)))
+    return f'{base_name} ({max_index + 1})' if found else base_name
 
 
 def _get_catalog_setting(target: Category | Event):

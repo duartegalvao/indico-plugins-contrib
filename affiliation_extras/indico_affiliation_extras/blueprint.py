@@ -14,11 +14,15 @@ from indico_affiliation_extras.controllers.admin import (
     RHAffiliationGroups,
     RHAffiliationTag,
     RHAffiliationTags,
+    RHCloneRoleCatalog,
     RHContactListNames,
     RHEmailRepresentativesImageUpload,
     RHEmailRepresentativesMetadata,
     RHEmailRepresentativesPreview,
     RHEmailRepresentativesSend,
+    RHRoleCatalog,
+    RHRoleCatalogs,
+    RHRoleCatalogsAdminPage,
     RHSearchAffiliationsExtended,
 )
 from indico_affiliation_extras.controllers.catalogs import (
@@ -108,6 +112,31 @@ blueprint.add_url_rule(
     f'{_admin_prefix}/affiliation-user-count',
     'api_affiliation_user_count',
     RHAffiliationUserCount,
+    methods=('POST',),
+)
+blueprint.add_url_rule('/admin/affiliation-role-catalogs/', 'manage_role_catalogs', RHRoleCatalogsAdminPage)
+blueprint.add_url_rule('/admin/affiliation-role-catalogs/new/', 'create_role_catalog', RHRoleCatalogsAdminPage)
+blueprint.add_url_rule(
+    '/admin/affiliation-role-catalogs/<int:role_catalog_id>/',
+    'role_catalog_detail',
+    RHRoleCatalogsAdminPage,
+)
+blueprint.add_url_rule(
+    f'{_admin_prefix}/role-catalogs',
+    'api_role_catalogs',
+    RHRoleCatalogs,
+    methods=('GET', 'POST'),
+)
+blueprint.add_url_rule(
+    f'{_admin_prefix}/role-catalogs/<int:role_catalog_id>',
+    'api_role_catalog',
+    RHRoleCatalog,
+    methods=('GET', 'PATCH', 'DELETE'),
+)
+blueprint.add_url_rule(
+    f'{_admin_prefix}/role-catalogs/<int:role_catalog_id>/clone',
+    'api_clone_role_catalog',
+    RHCloneRoleCatalog,
     methods=('POST',),
 )
 

@@ -30,7 +30,7 @@ from indico_affiliation_extras.util import (
     populate_contacts,
     populate_memberships,
 )
-from indico_affiliation_extras.views import WPCategoryAffiliations, WPEventAffiliations
+from indico_affiliation_extras.views import WPCategoryAffiliations, WPEventAffiliations, WPRoleCatalogsAdmin
 
 
 AFFILIATION_EXTRA_FIELDS = {
@@ -52,6 +52,7 @@ class AffiliationExtrasPlugin(IndicoPlugin):
             WPManageRegistration,
             WPDisplayRegistrationFormConference,
             WPDisplayRegistrationFormSimpleEvent,
+            WPRoleCatalogsAdmin,
         )
         self.inject_bundle('main.js', wps)
         self.inject_bundle('main.css', wps)
@@ -62,6 +63,7 @@ class AffiliationExtrasPlugin(IndicoPlugin):
         self.connect(signals.affiliations.affiliation_updated, self._set_affiliation_extra_attrs)
         self.connect(signals.affiliations.get_affiliation_filters, self._restrict_affiliations_for_representation)
         self.connect(signals.event.registrant_list_items, self._get_registrant_list_items)
+        self.connect(signals.menu.items, self._admin_sidemenu_items, sender='admin-sidemenu')
         self.connect(signals.menu.items, self._category_sidemenu_items, sender='category-management-sidemenu')
         self.connect(signals.menu.items, self._event_sidemenu_items, sender='event-management-sidemenu')
         self.connect(
@@ -118,6 +120,15 @@ class AffiliationExtrasPlugin(IndicoPlugin):
                 url_for_plugin('affiliation_extras.manage_affiliations', category),
                 sui_icon='university',
                 weight=15,
+            )
+
+    def _admin_sidemenu_items(self, sender, **kwargs):
+        if session.user and session.user.is_admin:
+            return SideMenuItem(
+                'affiliation_role_catalogs',
+                _('Affiliation role catalogs'),
+                url_for_plugin('affiliation_extras.manage_role_catalogs'),
+                section='user_management',
             )
 
     def _event_sidemenu_items(self, sender, event, **kwargs):

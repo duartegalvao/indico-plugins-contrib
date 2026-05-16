@@ -30,7 +30,9 @@ registerPluginComponent(
 registerPluginComponent(PLUGIN_NAME, 'affiliation-dashboard-row-actions', AffiliationRowActions);
 registerPluginObject(PLUGIN_NAME, 'invite-dialog-extra-modes', affiliationInvitations);
 
-// Category management
-import setupAffiliationCatalogs from './catalogs';
+// Management entrypoints
+import setupAffiliationCatalogs from './affiliationCatalogs';
+import setupRoleCatalogs from './roleCatalogs';
 
 window.setupAffiliationCatalogs = setupAffiliationCatalogs;
+window.setupRoleCatalogs = setupRoleCatalogs;

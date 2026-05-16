@@ -19,9 +19,9 @@ import {Translate} from 'indico/react/i18n';
 
 import FinalCatalogList from '../components/CatalogListField';
 
-import './CatalogDetailPane.module.scss';
+import '../components/CatalogDetailPane.module.scss';
 
-export default function CatalogDetailPane({catalog, targetLocator, isNew, onSubmit}) {
+export default function AffiliationCatalogDetailPane({catalog, targetLocator, isNew, onSubmit}) {
   const isCreate = isNew === true;
   const initialValues = {
     name: catalog?.name || '',
@@ -102,14 +102,14 @@ export default function CatalogDetailPane({catalog, targetLocator, isNew, onSubm
   );
 }
 
-CatalogDetailPane.propTypes = {
+AffiliationCatalogDetailPane.propTypes = {
   catalog: PropTypes.object,
   targetLocator: PropTypes.object.isRequired,
   isNew: PropTypes.bool,
   onSubmit: PropTypes.func.isRequired,
 };
 
-CatalogDetailPane.defaultProps = {
+AffiliationCatalogDetailPane.defaultProps = {
   catalog: null,
   isNew: false,
 };
