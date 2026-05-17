@@ -9,16 +9,15 @@ import resolveAffiliationsURL from 'indico-url:plugin_affiliation_extras.api_res
 
 import _ from 'lodash';
 import React, {useMemo, useState} from 'react';
-import {Button, Confirm, Icon, Input, Loader, Modal, Popup} from 'semantic-ui-react';
+import {Button, Confirm, Dropdown, Icon, Input, Modal, Popup} from 'semantic-ui-react';
 
 import {FinalField} from 'indico/react/forms';
 import {FinalModalForm} from 'indico/react/forms/final-form';
-import {useIndicoAxios} from 'indico/react/hooks';
 import {Translate} from 'indico/react/i18n';
 import {SortableWrapper, useSortableItem} from 'indico/react/sortable';
 import {Affiliation} from 'indico/modules/users/affiliations/types';
 
-import {GroupInfo, TagInfo} from '../types';
+import {GroupInfo, RoleCatalogInfo, TagInfo} from '../types';
 
 import {MembersDisplay} from './GroupsTagsDisplay';
 import FinalAffiliationList from './AffiliationListField';
@@ -38,6 +37,7 @@ export interface CatalogItem {
   groups: GroupInfo[];
   tags: TagInfo[];
   affiliations: Affiliation[];
+  role_catalog: RoleCatalogInfo | null;
 }
 
 const makeDefaultList = (): CatalogItem => ({
@@ -49,11 +49,13 @@ const makeDefaultList = (): CatalogItem => ({
   groups: [],
   tags: [],
   affiliations: [],
+  role_catalog: null,
 });
 
 interface CatalogListRowProps {
   value: CatalogItem;
   index: number;
+  roleCatalogs: RoleCatalogInfo[];
   targetLocator: Record<string, number>;
   onChange: (value: CatalogItem) => void;
   onDelete: () => void;
@@ -64,6 +66,7 @@ interface CatalogListRowProps {
 function CatalogListRow({
   value,
   index,
+  roleCatalogs,
   targetLocator,
   onChange,
   onDelete,
@@ -88,6 +91,11 @@ function CatalogListRow({
   const hasMembers =
     value.groups.length > 0 || value.tags.length > 0 || value.affiliations.length > 0;
   const isEnabled = value.is_enabled;
+  const roleCatalogOptions = roleCatalogs.map(catalog => ({
+    key: catalog.id,
+    value: catalog.id,
+    text: catalog.name,
+  }));
 
   return (
     <tr ref={itemRef} style={{...style}} styleName={isEnabled ? null : 'row-disabled'}>
@@ -107,6 +115,24 @@ function CatalogListRow({
           groups={value.groups}
           tags={value.tags}
           affiliationCount={value.affiliations.length}
+        />
+      </td>
+      <td>
+        <Dropdown
+          fluid
+          clearable
+          search
+          selection
+          options={roleCatalogOptions}
+          placeholder={Translate.string('No role catalog')}
+          value={value.role_catalog?.id ?? null}
+          noResultsMessage={Translate.string('No role catalogs found')}
+          onChange={(_, {value: roleCatalogId}) =>
+            onChange({
+              ...value,
+              role_catalog: roleCatalogs.find(catalog => catalog.id === roleCatalogId) ?? null,
+            })
+          }
         />
       </td>
       <td style={{whiteSpace: 'nowrap', width: '1px'}}>
@@ -224,12 +250,14 @@ function CatalogListField({
   onFocus,
   onBlur,
   targetLocator,
+  roleCatalogs,
 }: {
   value?: CatalogItem[];
   onChange: (value: CatalogItem[]) => void;
   onFocus: () => void;
   onBlur: () => void;
   targetLocator: Record<string, number>;
+  roleCatalogs: RoleCatalogInfo[];
 }) {
   const emptyDefault = useMemo(makeDefaultList, []);
   const values = _value?.length ? _value : [emptyDefault];
@@ -264,6 +292,7 @@ function CatalogListField({
               <col styleName="col-drag" />
               <col styleName="col-name" />
               <col styleName="col-members" />
+              <col styleName="col-role-catalog" />
               <col styleName="col-actions" />
             </colgroup>
             <thead>
@@ -275,6 +304,9 @@ function CatalogListField({
                 <th>
                   <Translate>Members</Translate>
                 </th>
+                <th>
+                  <Translate>Role catalog</Translate>
+                </th>
                 <th />
               </tr>
             </thead>
@@ -284,6 +316,7 @@ function CatalogListField({
                   key={value.id ?? value._frontendId ?? `new-${idx}`}
                   index={idx}
                   value={value}
+                  roleCatalogs={roleCatalogs}
                   targetLocator={targetLocator}
                   canDelete={normalizedValues.length > 1}
                   onChange={newValue =>
@@ -332,11 +365,12 @@ const validateCatalogLists = (value: CatalogItem[]) => {
   }
 };
 
-export default function FinalCatalogList({name, targetLocator, ...rest}) {
+export default function FinalCatalogList({name, roleCatalogs, targetLocator, ...rest}) {
   return (
     <FinalField
       name={name}
       component={CatalogListField}
+      roleCatalogs={roleCatalogs}
       targetLocator={targetLocator}
       format={(v: CatalogItem[]) => v}
       parse={(v: CatalogItem[]) => v}

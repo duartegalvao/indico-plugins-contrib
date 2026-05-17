@@ -12,6 +12,8 @@ from indico.modules.users.models.affiliations import Affiliation
 
 from indico_affiliation_extras.models.catalogs import AffiliationCatalog
 from indico_affiliation_extras.models.lists import AffiliationList
+from indico_affiliation_extras.models.roles import RoleCatalog
+from indico_affiliation_extras.models.tags import AffiliationTag  # noqa: F401
 from indico_affiliation_extras.settings import event_settings
 
 
@@ -27,28 +29,36 @@ def _create_affiliation(db, name='CERN'):
     return affiliation
 
 
-def _catalog_payload(affiliation_id, name='Catalog'):
+def _catalog_payload(affiliation_id, name='Catalog', *, list_id=None, role_catalog_id=None):
     return {
         'name': name,
         'lists': [
             {
-                'id': None,
+                'id': list_id,
                 'name': 'List',
                 'position': 1,
                 'is_enabled': True,
                 'groups': [],
                 'tags': [],
                 'affiliations': [affiliation_id],
+                'role_catalog_id': role_catalog_id,
             }
         ],
     }
 
 
-def _create_catalog(db, affiliation, *, category=None, event=None, name='Catalog'):
+def _create_role_catalog(db, *, name='Roles'):
+    catalog = RoleCatalog(name=name)
+    db.session.add(catalog)
+    db.session.flush()
+    return catalog
+
+
+def _create_catalog(db, affiliation, *, category=None, event=None, name='Catalog', role_catalog=None):
     catalog = AffiliationCatalog(name=name, category=category, event=event)
     db.session.add(catalog)
     db.session.flush()
-    list_obj = AffiliationList(catalog=catalog, name='List', position=1, is_enabled=True)
+    list_obj = AffiliationList(catalog=catalog, name='List', position=1, is_enabled=True, role_catalog=role_catalog)
     list_obj.affiliations.add(affiliation)
     db.session.add(list_obj)
     db.session.flush()
@@ -80,6 +90,7 @@ def test_event_management_page_includes_own_and_inherited_catalogs(
     event = create_event(category=child)
     event.update_principal(dummy_user, full_access=True)
     affiliation = _create_affiliation(db)
+    role_catalog = _create_role_catalog(db, name='Conference roles')
     inherited_catalog = _create_catalog(db, affiliation, category=child, name='Inherited catalog')
     own_catalog = _create_catalog(db, affiliation, event=event, name='Own catalog')
     event_settings.set(event, 'default_catalog_id', own_catalog.id)
@@ -92,6 +103,7 @@ def test_event_management_page_includes_own_and_inherited_catalogs(
     assert 'affiliation-catalogs' in data
     assert inherited_catalog.name in data
     assert own_catalog.name in data
+    assert role_catalog.name in data
 
 
 @pytest.mark.usefixtures('no_csrf_check')
@@ -101,30 +113,38 @@ def test_event_catalog_api_crud_clone_and_toggle_default(test_client, db, dummy_
     event = create_event(category=category)
     event.update_principal(dummy_user, full_access=True)
     affiliation = _create_affiliation(db)
-    inherited_catalog = _create_catalog(db, affiliation, category=category, name='Inherited catalog')
+    role_catalog = _create_role_catalog(db, name='Conference roles')
+    inherited_catalog = _create_catalog(
+        db, affiliation, category=category, name='Inherited catalog', role_catalog=role_catalog
+    )
     _login(test_client, dummy_user)
 
     create_resp = test_client.post(
         f'/event/{event.id}/manage/affiliations/api/affiliations/catalogs',
-        json=_catalog_payload(affiliation.id, name='Event catalog'),
+        json=_catalog_payload(affiliation.id, name='Event catalog', role_catalog_id=role_catalog.id),
     )
     assert create_resp.status_code == 201
     created = create_resp.json
     created_id = created['id']
+    list_id = created['lists'][0]['id']
     assert created['owner']['locator']['event_id'] == event.id
+    assert created['lists'][0]['role_catalog'] == {'id': role_catalog.id, 'name': 'Conference roles'}
 
     edit_resp = test_client.patch(
         f'/event/{event.id}/manage/affiliations/api/affiliations/catalogs/{created_id}',
-        json=_catalog_payload(affiliation.id, name='Event catalog edited'),
+        json=_catalog_payload(affiliation.id, name='Event catalog edited', list_id=list_id, role_catalog_id=None),
     )
     assert edit_resp.status_code == 200
     assert edit_resp.json['name'] == 'Event catalog edited'
+    assert edit_resp.json['lists'][0]['role_catalog'] is None
+    assert db.session.get(AffiliationList, list_id).role_catalog is None
 
     clone_resp = test_client.post(
         f'/event/{event.id}/manage/affiliations/api/affiliations/catalogs/{inherited_catalog.id}/clone'
     )
     assert clone_resp.status_code == 200
     assert clone_resp.json['owner']['locator']['event_id'] == event.id
+    assert clone_resp.json['lists'][0]['role_catalog'] == {'id': role_catalog.id, 'name': 'Conference roles'}
     clone_id = clone_resp.json['id']
 
     own_toggle_resp = test_client.post(
@@ -184,6 +204,24 @@ def test_event_catalog_api_rejects_duplicate_list_names(test_client, db, dummy_u
         f'/event/{event.id}/manage/affiliations/api/affiliations/catalogs',
         json=payload,
     )
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.usefixtures('no_csrf_check')
+def test_event_catalog_api_rejects_unknown_role_catalog(test_client, db, dummy_user, create_category, create_event):
+    category = create_category(title='Category')
+    category.update_principal(dummy_user, full_access=True)
+    event = create_event(category=category)
+    event.update_principal(dummy_user, full_access=True)
+    affiliation = _create_affiliation(db)
+    _login(test_client, dummy_user)
+
+    resp = test_client.post(
+        f'/event/{event.id}/manage/affiliations/api/affiliations/catalogs',
+        json=_catalog_payload(affiliation.id, name='Event catalog', role_catalog_id=999999),
+    )
+
     assert resp.status_code == 422
 
 

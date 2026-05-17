@@ -11,6 +11,7 @@
             document.querySelector('#affiliation-catalogs'),
             {{ own_catalogs | tojson }},
             {{ inherited_catalogs | tojson }},
+            {{ role_catalogs | tojson }},
             {{ default_catalog_id | tojson }},
             {{ explicit_default_catalog_id | tojson }},
             {{ target_locator | tojson }}

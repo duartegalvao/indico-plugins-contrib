@@ -174,7 +174,16 @@ def _create_catalog(db, *, category=None, event=None, name='Catalog'):
 
 
 def _create_affiliation_catalog_list(
-    db, catalog, *, name='List', position=1, is_enabled=True, groups=(), tags=(), affiliations=()
+    db,
+    catalog,
+    *,
+    name='List',
+    position=1,
+    is_enabled=True,
+    groups=(),
+    tags=(),
+    affiliations=(),
+    role_catalog=None,
 ):
     list_obj = AffiliationList(
         catalog=catalog,
@@ -184,6 +193,7 @@ def _create_affiliation_catalog_list(
         groups=set(groups),
         tags=set(tags),
         affiliations=set(affiliations),
+        role_catalog=role_catalog,
     )
     db.session.add(list_obj)
     db.session.flush()
@@ -199,6 +209,7 @@ def _affiliation_catalog_list_payload(
     groups=(),
     tags=(),
     affiliations=(),
+    role_catalog=None,
 ):
     return {
         'list_link': list_link,
@@ -208,6 +219,7 @@ def _affiliation_catalog_list_payload(
         'groups': set(groups),
         'tags': set(tags),
         'affiliations': set(affiliations),
+        'role_catalog': role_catalog,
     }
 
 
@@ -218,6 +230,7 @@ _AFFILIATION_CATALOG_LIST_LOG_FIELD_META = {
     'groups': ('Groups', 'list'),
     'tags': ('Tags', 'list'),
     'affiliations': ('Affiliations', 'list'),
+    'role_catalog': ('Role catalog', 'string'),
 }
 
 
@@ -552,6 +565,7 @@ def test_populate_affiliation_catalog_lists_adds_new_list_and_logs_details(db):
     affiliation = _create_affiliation(db, 'CERN')
     group = _create_group(db, 'Group A', 'group-a')
     tag = _create_tag(db, 'Tag A', 'tag-a')
+    role_catalog = _create_role_catalog(db, name='Conference roles')
 
     changes, log_fields = util.populate_affiliation_catalog_lists(
         catalog,
@@ -562,11 +576,13 @@ def test_populate_affiliation_catalog_lists_adds_new_list_and_logs_details(db):
                 groups={group},
                 tags={tag},
                 affiliations={affiliation},
+                role_catalog=role_catalog,
             ),
         ],
     )
 
     assert [lst.name for lst in catalog.lists] == ['Representatives']
+    assert catalog.lists[0].role_catalog == role_catalog
     list_id = catalog.lists[0].id
     assert changes == {
         'lists': ([], ['Representatives']),
@@ -576,9 +592,18 @@ def test_populate_affiliation_catalog_lists_adds_new_list_and_logs_details(db):
         _affiliation_catalog_list_key(list_id, 'groups'): ([], ['group-a']),
         _affiliation_catalog_list_key(list_id, 'tags'): ([], ['tag-a']),
         _affiliation_catalog_list_key(list_id, 'affiliations'): ([], ['CERN']),
+        _affiliation_catalog_list_key(list_id, 'role_catalog'): ('', f'Conference roles ({role_catalog.id})'),
     }
     assert log_fields == _affiliation_catalog_list_log_fields(
-        list_id, 'Representatives', 'name', 'is_enabled', 'position', 'groups', 'tags', 'affiliations'
+        list_id,
+        'Representatives',
+        'name',
+        'is_enabled',
+        'position',
+        'groups',
+        'tags',
+        'affiliations',
+        'role_catalog',
     )
 
 
@@ -590,6 +615,8 @@ def test_populate_affiliation_catalog_lists_updates_existing_list_and_logs_detai
     new_group = _create_group(db, 'Group B', 'group-b')
     old_tag = _create_tag(db, 'Tag A', 'tag-a')
     new_tag = _create_tag(db, 'Tag B', 'tag-b')
+    old_role_catalog = _create_role_catalog(db, name='Old roles')
+    new_role_catalog = _create_role_catalog(db, name='New roles')
     list_obj = _create_affiliation_catalog_list(
         db,
         catalog,
@@ -599,6 +626,7 @@ def test_populate_affiliation_catalog_lists_updates_existing_list_and_logs_detai
         groups={old_group},
         tags={old_tag},
         affiliations={old_affiliation},
+        role_catalog=old_role_catalog,
     )
 
     changes, log_fields = util.populate_affiliation_catalog_lists(
@@ -612,21 +640,64 @@ def test_populate_affiliation_catalog_lists_updates_existing_list_and_logs_detai
                 groups={new_group},
                 tags={new_tag},
                 affiliations={new_affiliation},
+                role_catalog=new_role_catalog,
             ),
         ],
     )
 
     assert list_obj.position == 2
     assert not list_obj.is_enabled
+    assert list_obj.role_catalog == new_role_catalog
     assert changes == {
         _affiliation_catalog_list_key(list_obj.id, 'is_enabled'): (True, False),
         _affiliation_catalog_list_key(list_obj.id, 'position'): (1, 2),
         _affiliation_catalog_list_key(list_obj.id, 'groups'): (['group-a'], ['group-b']),
         _affiliation_catalog_list_key(list_obj.id, 'tags'): (['tag-a'], ['tag-b']),
         _affiliation_catalog_list_key(list_obj.id, 'affiliations'): (['Alpha'], ['Beta']),
+        _affiliation_catalog_list_key(list_obj.id, 'role_catalog'): (
+            f'Old roles ({old_role_catalog.id})',
+            f'New roles ({new_role_catalog.id})',
+        ),
     }
     assert log_fields == _affiliation_catalog_list_log_fields(
-        list_obj.id, 'Representatives', 'is_enabled', 'position', 'groups', 'tags', 'affiliations'
+        list_obj.id, 'Representatives', 'is_enabled', 'position', 'groups', 'tags', 'affiliations', 'role_catalog'
+    )
+
+
+def test_populate_affiliation_catalog_lists_logs_same_name_role_catalog_change(db):
+    catalog = _create_catalog(db, name='Catalog')
+    affiliation = _create_affiliation(db, 'CERN')
+    old_role_catalog = _create_role_catalog(db, name='Roles')
+    new_role_catalog = _create_role_catalog(db, name='Roles')
+    list_obj = _create_affiliation_catalog_list(
+        db,
+        catalog,
+        name='Representatives',
+        affiliations={affiliation},
+        role_catalog=old_role_catalog,
+    )
+
+    changes, log_fields = util.populate_affiliation_catalog_lists(
+        catalog,
+        [
+            _affiliation_catalog_list_payload(
+                list_link=list_obj,
+                name='Representatives',
+                affiliations={affiliation},
+                role_catalog=new_role_catalog,
+            ),
+        ],
+    )
+
+    assert list_obj.role_catalog == new_role_catalog
+    assert changes == {
+        _affiliation_catalog_list_key(list_obj.id, 'role_catalog'): (
+            f'Roles ({old_role_catalog.id})',
+            f'Roles ({new_role_catalog.id})',
+        ),
+    }
+    assert log_fields == _affiliation_catalog_list_log_fields(
+        list_obj.id, 'Representatives', 'role_catalog'
     )
 
 
@@ -635,6 +706,7 @@ def test_populate_affiliation_catalog_lists_noop(db):
     affiliation = _create_affiliation(db, 'CERN')
     group = _create_group(db, 'Group A', 'group-a')
     tag = _create_tag(db, 'Tag A', 'tag-a')
+    role_catalog = _create_role_catalog(db, name='Conference roles')
     list_obj = _create_affiliation_catalog_list(
         db,
         catalog,
@@ -644,6 +716,7 @@ def test_populate_affiliation_catalog_lists_noop(db):
         groups={group},
         tags={tag},
         affiliations={affiliation},
+        role_catalog=role_catalog,
     )
 
     changes, log_fields = util.populate_affiliation_catalog_lists(
@@ -657,6 +730,7 @@ def test_populate_affiliation_catalog_lists_noop(db):
                 groups={group},
                 tags={tag},
                 affiliations={affiliation},
+                role_catalog=role_catalog,
             ),
         ],
     )

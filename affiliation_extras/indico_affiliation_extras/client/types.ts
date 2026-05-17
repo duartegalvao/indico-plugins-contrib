@@ -24,6 +24,11 @@ export interface TagInfo {
   color: SemanticCOLORS;
 }
 
+export interface RoleCatalogInfo {
+  id: number;
+  name: string;
+}
+
 export interface ExtendedAffiliation extends Affiliation {
   contact_lists: ContactList[];
   groups: GroupInfo[];

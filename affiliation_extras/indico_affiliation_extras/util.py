@@ -242,6 +242,9 @@ def serialize_affiliation_catalog_lists(catalog_lists: list[AffiliationList]) ->
             'groups': sorted(g.code for g in item.groups),
             'tags': sorted(t.code for t in item.tags),
             'affiliations': sorted(a.name for a in item.affiliations),
+            'role_catalog': (
+                {'id': item.role_catalog.id, 'name': item.role_catalog.name} if item.role_catalog else None
+            ),
         }
         for item in catalog_lists
     }
@@ -254,12 +257,16 @@ _AFFILIATION_CATALOG_LIST_LOG_FIELDS = (
     ('groups', 'Groups', 'list'),
     ('tags', 'Tags', 'list'),
     ('affiliations', 'Affiliations', 'list'),
+    ('role_catalog', 'Role catalog', 'string'),
 )
 
 
 def _get_affiliation_catalog_list_log_value(data: dict, attr: str) -> object:
     if attr in {'groups', 'tags', 'affiliations'}:
         return data.get(attr, [])
+    if attr == 'role_catalog':
+        role_catalog = data.get('role_catalog') or {}
+        return f'{role_catalog["name"]} ({role_catalog["id"]})' if role_catalog else ''
     if attr == 'name':
         return data.get(attr, '')
     return data.get(attr)
@@ -307,6 +314,7 @@ def _update_affiliation_catalog_list(list_obj: AffiliationList, list_data: dict)
     list_obj.groups = list_data['groups']
     list_obj.tags = list_data['tags']
     list_obj.affiliations = list_data['affiliations']
+    list_obj.role_catalog = list_data['role_catalog']
 
 
 def _apply_affiliation_catalog_lists(catalog: AffiliationCatalog, catalog_lists: list[dict]) -> None:

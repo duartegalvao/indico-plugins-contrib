@@ -14,13 +14,20 @@ export default function setupAffiliationCatalogs(
   elem,
   ownCatalogs,
   inheritedCatalogs,
+  roleCatalogs,
   defaultCatalogId,
   explicitDefaultCatalogId,
   targetLocator
 ) {
   ReactDOM.render(
     <AffiliationCatalogManagement
-      initialState={{ownCatalogs, inheritedCatalogs, defaultCatalogId, explicitDefaultCatalogId}}
+      initialState={{
+        ownCatalogs,
+        inheritedCatalogs,
+        roleCatalogs,
+        defaultCatalogId,
+        explicitDefaultCatalogId,
+      }}
       targetLocator={targetLocator}
     />,
     elem

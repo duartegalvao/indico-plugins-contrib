@@ -21,7 +21,13 @@ import FinalCatalogList from '../components/CatalogListField';
 
 import '../components/CatalogDetailPane.module.scss';
 
-export default function AffiliationCatalogDetailPane({catalog, targetLocator, isNew, onSubmit}) {
+export default function AffiliationCatalogDetailPane({
+  catalog,
+  roleCatalogs,
+  targetLocator,
+  isNew,
+  onSubmit,
+}) {
   const isCreate = isNew === true;
   const initialValues = {
     name: catalog?.name || '',
@@ -33,6 +39,7 @@ export default function AffiliationCatalogDetailPane({catalog, targetLocator, is
       groups: list.groups,
       tags: list.tags,
       affiliations: list.affiliations,
+      role_catalog: list.role_catalog,
     })),
   };
 
@@ -55,6 +62,7 @@ export default function AffiliationCatalogDetailPane({catalog, targetLocator, is
         groups: list.groups.map(group => group.id),
         tags: list.tags.map(tag => tag.id),
         affiliations: list.affiliations.map(affiliation => affiliation.id),
+        role_catalog_id: list.role_catalog?.id ?? null,
       })),
     });
 
@@ -89,7 +97,12 @@ export default function AffiliationCatalogDetailPane({catalog, targetLocator, is
                 <h3>
                   <Translate>Lists</Translate>
                 </h3>
-                <FinalCatalogList name="lists" targetLocator={targetLocator} required />
+                <FinalCatalogList
+                  name="lists"
+                  roleCatalogs={roleCatalogs}
+                  targetLocator={targetLocator}
+                  required
+                />
               </section>
               <div styleName="form-actions">
                 <FinalSubmitButton label={Translate.string('Save changes')} disabledUntilChange />
@@ -104,6 +117,7 @@ export default function AffiliationCatalogDetailPane({catalog, targetLocator, is
 
 AffiliationCatalogDetailPane.propTypes = {
   catalog: PropTypes.object,
+  roleCatalogs: PropTypes.array.isRequired,
   targetLocator: PropTypes.object.isRequired,
   isNew: PropTypes.bool,
   onSubmit: PropTypes.func.isRequired,

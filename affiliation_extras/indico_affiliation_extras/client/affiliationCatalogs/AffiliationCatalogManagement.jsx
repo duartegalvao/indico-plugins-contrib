@@ -64,7 +64,7 @@ function reducer(state, action) {
   }
 }
 
-function AffiliationCatalogEditRoute({catalogs, dispatch, targetLocator}) {
+function AffiliationCatalogEditRoute({catalogs, roleCatalogs, dispatch, targetLocator}) {
   const catalogId = useNumericParam('catalog_id');
   const catalog = catalogs.find(p => p.id === catalogId);
 
@@ -85,6 +85,7 @@ function AffiliationCatalogEditRoute({catalogs, dispatch, targetLocator}) {
       <ManagementPageBackButton url={catalogListURL(targetLocator)} />
       <AffiliationCatalogDetailPane
         catalog={catalog}
+        roleCatalogs={roleCatalogs}
         targetLocator={targetLocator}
         onSubmit={saveCatalog}
       />
@@ -92,7 +93,7 @@ function AffiliationCatalogEditRoute({catalogs, dispatch, targetLocator}) {
   );
 }
 
-function AffiliationCatalogCreateRoute({dispatch, targetLocator}) {
+function AffiliationCatalogCreateRoute({roleCatalogs, dispatch, targetLocator}) {
   const history = useHistory();
 
   const createCatalog = async payload => {
@@ -113,6 +114,7 @@ function AffiliationCatalogCreateRoute({dispatch, targetLocator}) {
       <ManagementPageBackButton url={catalogListURL(targetLocator)} />
       <AffiliationCatalogDetailPane
         catalog={null}
+        roleCatalogs={roleCatalogs}
         targetLocator={targetLocator}
         isNew
         onSubmit={createCatalog}
@@ -144,7 +146,11 @@ export default function AffiliationCatalogManagement({initialState, targetLocato
             exact
             path={routerPathFromFlask(catalogNewURL, targetIdParams)}
             render={() => (
-              <AffiliationCatalogCreateRoute dispatch={dispatch} targetLocator={targetLocator} />
+              <AffiliationCatalogCreateRoute
+                roleCatalogs={state.roleCatalogs}
+                dispatch={dispatch}
+                targetLocator={targetLocator}
+              />
             )}
           />
           <Route
@@ -153,6 +159,7 @@ export default function AffiliationCatalogManagement({initialState, targetLocato
             render={() => (
               <AffiliationCatalogEditRoute
                 catalogs={state.ownCatalogs}
+                roleCatalogs={state.roleCatalogs}
                 dispatch={dispatch}
                 targetLocator={targetLocator}
               />
@@ -177,11 +184,13 @@ export default function AffiliationCatalogManagement({initialState, targetLocato
 
 AffiliationCatalogEditRoute.propTypes = {
   catalogs: PropTypes.array.isRequired,
+  roleCatalogs: PropTypes.array.isRequired,
   dispatch: PropTypes.func.isRequired,
   targetLocator: PropTypes.object.isRequired,
 };
 
 AffiliationCatalogCreateRoute.propTypes = {
+  roleCatalogs: PropTypes.array.isRequired,
   dispatch: PropTypes.func.isRequired,
   targetLocator: PropTypes.object.isRequired,
 };
@@ -190,6 +199,7 @@ AffiliationCatalogManagement.propTypes = {
   initialState: PropTypes.shape({
     ownCatalogs: PropTypes.array,
     inheritedCatalogs: PropTypes.array,
+    roleCatalogs: PropTypes.array,
     defaultCatalogId: PropTypes.number,
     explicitDefaultCatalogId: PropTypes.number,
   }).isRequired,

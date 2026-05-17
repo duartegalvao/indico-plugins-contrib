@@ -23,11 +23,13 @@ from indico.web.rh import RHProtected
 
 from indico_affiliation_extras.models.catalogs import AffiliationCatalog
 from indico_affiliation_extras.models.groups import AffiliationGroup
+from indico_affiliation_extras.models.roles import RoleCatalog
 from indico_affiliation_extras.models.tags import AffiliationTag
 from indico_affiliation_extras.schemas import (
     AffiliationCatalogArgs,
     AffiliationCatalogSchema,
     ExtendedAffiliationSchema,
+    RoleCatalogSchema,
 )
 from indico_affiliation_extras.settings import category_settings, event_settings
 from indico_affiliation_extras.util import (
@@ -52,6 +54,9 @@ class AffiliationCatalogListMixin:
         inherited_catalogs = AffiliationCatalogSchema(many=True, only={'id', 'name', 'owner'}).dump(
             get_inherited_catalogs(self.target)
         )
+        role_catalogs = RoleCatalog.query.order_by(
+            db.func.indico.indico_unaccent(db.func.lower(RoleCatalog.name))
+        ).all()
         default_catalog = get_default_catalog(self.target)
         explicit_default = get_explicit_default_catalog(self.target)
         view_class = WPEventAffiliations if isinstance(self.target, Event) else WPCategoryAffiliations
@@ -61,6 +66,7 @@ class AffiliationCatalogListMixin:
             'affiliation_extras',
             own_catalogs=own_catalogs,
             inherited_catalogs=inherited_catalogs,
+            role_catalogs=RoleCatalogSchema(many=True, only=('id', 'name')).dump(role_catalogs),
             default_catalog_id=default_catalog.id if default_catalog else None,
             explicit_default_catalog_id=explicit_default.id if explicit_default else None,
             target_locator=self.target.locator,
@@ -202,6 +208,7 @@ class RHCloneAffiliationCatalog(RHAffiliationCatalogMixin, RHAffiliationCatalogs
                 'groups': lst.groups,
                 'tags': lst.tags,
                 'affiliations': lst.affiliations,
+                'role_catalog': lst.role_catalog,
             }
             for lst in self.catalog.lists
         ]

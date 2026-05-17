@@ -6,7 +6,7 @@
 // MIT License see the LICENSE file for more details.
 
 import _ from 'lodash';
-import React, {useState} from 'react';
+import React, {useMemo, useState} from 'react';
 import {Button, Confirm, Icon, Input, Popup} from 'semantic-ui-react';
 
 import {FinalField} from 'indico/react/forms';
@@ -15,20 +15,24 @@ import {SortableWrapper, useSortableItem} from 'indico/react/sortable';
 
 import './RoleListField.module.scss';
 
-const DEFAULT_ROLE_VALUE = {
-  id: null,
-  code: '',
-  name: '',
-  position: null,
-};
 const DRAG_TYPE = 'affiliations-role-catalog-role';
 
 export interface RoleItem {
   id?: number | null;
+  // client-only stable id for unsaved rows (used as React key / drag id; dropped server-side)
+  _frontendId?: string;
   code: string;
   name: string;
   position?: number | null;
 }
+
+const makeDefaultRole = (): RoleItem => ({
+  id: null,
+  _frontendId: _.uniqueId('role-'),
+  code: '',
+  name: '',
+  position: null,
+});
 
 interface RoleListRowProps {
   value: RoleItem;
@@ -43,7 +47,7 @@ function RoleListRow({value, index, onChange, onDelete, onMove, canDelete}: Role
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [handleRef, itemRef, style] = useSortableItem({
     type: DRAG_TYPE,
-    id: value.id ?? `new-${index}`,
+    id: value.id ?? value._frontendId ?? `new-${index}`,
     index,
     active: true,
     separateHandle: true,
@@ -121,7 +125,8 @@ function RoleListField({
   onFocus: () => void;
   onBlur: () => void;
 }) {
-  const values = _value?.length ? _value : [DEFAULT_ROLE_VALUE];
+  const emptyDefault = useMemo(makeDefaultRole, []);
+  const values = _value?.length ? _value : [emptyDefault];
   const normalizePositions = (items: RoleItem[]) =>
     items.map((item, idx) => ({
       ...item,
@@ -169,7 +174,7 @@ function RoleListField({
           <tbody>
             {normalizedValues.map((value, idx) => (
               <RoleListRow
-                key={value.id ?? `new-${idx}`}
+                key={value.id ?? value._frontendId ?? `new-${idx}`}
                 index={idx}
                 value={value}
                 canDelete={normalizedValues.length > 1}
@@ -187,7 +192,7 @@ function RoleListField({
         type="button"
         icon="add"
         content={Translate.string('Add role')}
-        onClick={() => handleChange([...normalizedValues, DEFAULT_ROLE_VALUE], false)}
+        onClick={() => handleChange([...normalizedValues, makeDefaultRole()], false)}
         disabled={normalizedValues.some(v => !v.code.trim() || !v.name.trim())}
         style={{marginTop: '0.5em'}}
         compact

@@ -7,7 +7,7 @@
 
 import pytest
 
-from indico_affiliation_extras.models.roles import Role, RoleCatalog
+from indico_affiliation_extras.models.roles import AffiliationRole, RoleCatalog
 
 
 def _login(test_client, user):
@@ -29,8 +29,8 @@ def _role_catalog_payload(name='Catalog', roles=None):
 def _create_role_catalog(db, *, name='Catalog'):
     catalog = RoleCatalog(name=name)
     catalog.roles = [
-        Role(code='chair', name='Chair', position=1),
-        Role(code='delegate', name='Delegate', position=2),
+        AffiliationRole(code='chair', name='Chair', position=1),
+        AffiliationRole(code='delegate', name='Delegate', position=2),
     ]
     db.session.add(catalog)
     db.session.flush()
@@ -101,6 +101,23 @@ def test_role_catalog_api_crud_and_clone(test_client, db, admin_user):
     delete_resp = test_client.delete(f'/api/admin/plugins/affiliation_extras/role-catalogs/{created["id"]}')
     assert delete_resp.status_code == 204
     assert RoleCatalog.get(created['id']) is None
+
+
+@pytest.mark.usefixtures('no_csrf_check')
+def test_role_catalog_api_ignores_frontend_role_ids(test_client, admin_user):
+    _login(test_client, admin_user)
+
+    resp = test_client.post(
+        '/api/admin/plugins/affiliation_extras/role-catalogs',
+        json=_role_catalog_payload(
+            roles=[
+                {'id': None, '_frontendId': 'role-1', 'code': 'chair', 'name': 'Chair', 'position': 1},
+            ],
+        ),
+    )
+
+    assert resp.status_code == 201
+    assert [(role['code'], role['name']) for role in resp.json['roles']] == [('chair', 'Chair')]
 
 
 @pytest.mark.usefixtures('no_csrf_check')

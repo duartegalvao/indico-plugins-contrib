@@ -141,16 +141,31 @@ class AffiliationExtraAttrsArgs(mm.Schema):
                     raise ValidationError(_('Invalid email address: {email}').format(email=email))
 
 
+class AffiliationRoleSchema(mm.SQLAlchemyAutoSchema):
+    class Meta:
+        model = AffiliationRole
+        fields = ('id', 'code', 'name', 'position')
+
+
+class RoleCatalogSchema(mm.SQLAlchemyAutoSchema):
+    class Meta:
+        model = RoleCatalog
+        fields = ('id', 'name', 'roles')
+
+    roles = fields.List(fields.Nested(AffiliationRoleSchema))
+
+
 class AffiliationListSchema(mm.SQLAlchemyAutoSchema):
     class Meta:
         model = AffiliationList
-        fields = ('id', 'name', 'position', 'is_enabled', 'groups', 'tags', 'affiliations')
+        fields = ('id', 'name', 'position', 'is_enabled', 'groups', 'tags', 'affiliations', 'role_catalog')
 
     groups = SortedList(fields.Nested(AffiliationGroupSchema(only=('id', 'name', 'code'))), sort_key=attrgetter('code'))
     tags = SortedList(fields.Nested(AffiliationTagSchema), sort_key=attrgetter('code'))
     affiliations = SortedList(
         fields.Nested(UserAffiliationSchema(only=('id', 'name', 'city', 'country_code'))), sort_key=attrgetter('name')
     )
+    role_catalog = fields.Nested(RoleCatalogSchema(only=('id', 'name')))
 
 
 class AffiliationCatalogListArgs(mm.Schema):
@@ -164,6 +179,7 @@ class AffiliationCatalogListArgs(mm.Schema):
     groups = ModelList(AffiliationGroup, collection_class=set, filter_deleted=True, load_default=set)
     tags = ModelList(AffiliationTag, collection_class=set, load_default=set)
     affiliations = ModelList(Affiliation, collection_class=set, filter_deleted=True, load_default=set)
+    role_catalog = ModelField(RoleCatalog, data_key='role_catalog_id', load_default=None, allow_none=True)
 
     @validates_schema
     def _validate_members(self, data, **kwargs):
@@ -200,13 +216,10 @@ class AffiliationCatalogSchema(mm.SQLAlchemyAutoSchema):
     lists = fields.List(fields.Nested(AffiliationListSchema))
 
 
-class AffiliationRoleSchema(mm.SQLAlchemyAutoSchema):
-    class Meta:
-        model = AffiliationRole
-        fields = ('id', 'code', 'name', 'position')
-
-
 class RoleCatalogAffiliationRoleArgs(mm.Schema):
+    class Meta:
+        unknown = EXCLUDE
+
     role_link = ModelField(AffiliationRole, data_key='id', load_default=None, allow_none=True, load_only=True)
     code = fields.String(required=True, validate=not_empty)
     name = fields.String(required=True, validate=not_empty)
@@ -228,14 +241,6 @@ class RoleCatalogArgs(mm.Schema):
         role_ids = [role['role_link'].id for role in roles if role.get('role_link') is not None]
         if len(role_ids) != len(set(role_ids)):
             raise ValidationError('Role IDs must be unique')
-
-
-class RoleCatalogSchema(mm.SQLAlchemyAutoSchema):
-    class Meta:
-        model = RoleCatalog
-        fields = ('id', 'name', 'roles')
-
-    roles = fields.List(fields.Nested(AffiliationRoleSchema))
 
 
 class AffiliationWithUsersSchema(mm.Schema):
