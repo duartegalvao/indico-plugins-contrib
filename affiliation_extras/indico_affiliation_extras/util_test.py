@@ -696,9 +696,7 @@ def test_populate_affiliation_catalog_lists_logs_same_name_role_catalog_change(d
             f'Roles ({new_role_catalog.id})',
         ),
     }
-    assert log_fields == _affiliation_catalog_list_log_fields(
-        list_obj.id, 'Representatives', 'role_catalog'
-    )
+    assert log_fields == _affiliation_catalog_list_log_fields(list_obj.id, 'Representatives', 'role_catalog')
 
 
 def test_populate_affiliation_catalog_lists_noop(db):

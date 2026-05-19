@@ -29,10 +29,16 @@ REPRESENTATION_AFFILIATION_PRELOAD_LIMIT = 20
 _AFFILIATION_PRELOAD_FIELDS = ('id', 'name', 'street', 'postcode', 'city', 'country_code', 'meta')
 
 
+class RepresentationRoleValueSchema(mm.Schema):
+    id = fields.Integer(required=True, allow_none=True)
+    name = fields.String(load_default='')
+
+
 class RepresentationValueSchema(mm.Schema):
     representation_id = fields.Integer(required=True, allow_none=True, data_key='representationId')
     representation_name = fields.String(load_default='', data_key='representationName')
     affiliation = fields.Nested(AffiliationValueSchema, required=True)
+    role = fields.Nested(RepresentationRoleValueSchema, load_default=lambda: {'id': None, 'name': ''})
 
 
 class RepresentationField(RegistrationFormFieldBase):
@@ -40,6 +46,9 @@ class RepresentationField(RegistrationFormFieldBase):
     mm_field_class = fields.Nested
     mm_field_args = (RepresentationValueSchema,)
     not_empty_if_required = False
+    setup_schema_fields = {
+        'require_role': fields.Bool(load_default=False),
+    }
 
     @property
     def default_value(self):
@@ -47,6 +56,7 @@ class RepresentationField(RegistrationFormFieldBase):
             'representation_id': None,
             'representation_name': '',
             'affiliation': {'id': None, 'text': ''},
+            'role': {'id': None, 'name': ''},
         }
 
     @property
@@ -59,8 +69,14 @@ class RepresentationField(RegistrationFormFieldBase):
             affiliations = get_representation_affiliations(item)
             if len(affiliations) <= REPRESENTATION_AFFILIATION_PRELOAD_LIMIT:
                 data['affiliations'] = AffiliationSchema(many=True, only=_AFFILIATION_PRELOAD_FIELDS).dump(affiliations)
+            if item.role_catalog and item.role_catalog.roles:
+                data['roles'] = [{'id': role.id, 'name': role.name} for role in item.role_catalog.roles]
             representation_types.append(data)
         return super().view_data | {'representation_types': representation_types}
+
+    @property
+    def require_role(self):
+        return (self.form_item.data or {}).get('require_role', False)
 
     def get_validators(self, existing_registration):
         def _validate_representation(value):
@@ -68,6 +84,10 @@ class RepresentationField(RegistrationFormFieldBase):
             affiliation = value['affiliation']
             affiliation_text = affiliation['text']
             affiliation_id = affiliation['id']
+            role = value.get('role') or {}
+            affiliation_list = get_representation_affiliation_list(
+                self.form_item.registration_form.event, representation_id
+            )
             if self.form_item.is_required and representation_id is None:
                 raise ValidationError(_('Please select a representation type'))
             if representation_id is None and affiliation_id is not None:
@@ -75,6 +95,14 @@ class RepresentationField(RegistrationFormFieldBase):
             if affiliation_id is None:
                 if affiliation_text or representation_id is not None or self.form_item.is_required:
                     raise ValidationError(_('Please select an affiliation from the list'))
+            if (
+                self.require_role
+                and affiliation_list
+                and affiliation_list.role_catalog
+                and affiliation_list.role_catalog.roles
+            ):
+                if role.get('id') is None:
+                    raise ValidationError(_('Please select a role'))
 
         return _validate_representation
 
@@ -114,6 +142,27 @@ class RepresentationField(RegistrationFormFieldBase):
                 raise ValidationError(_('Invalid affiliation'))
             affiliation['text'] = matched_affiliation.name
 
+        role = value.get('role') or {'id': None, 'name': ''}
+        if role['id'] is not None:
+            if not affiliation_list or not affiliation_list.role_catalog:
+                raise ValidationError('Invalid role')
+            matched_role = next(
+                (item for item in affiliation_list.role_catalog.roles if item.id == role['id']),
+                None,
+            )
+            if matched_role is None:
+                raise ValidationError('Invalid role')
+            value['role'] = {'id': matched_role.id, 'name': matched_role.name}
+        elif (
+            self.require_role
+            and affiliation_list
+            and affiliation_list.role_catalog
+            and affiliation_list.role_catalog.roles
+        ):
+            raise ValidationError('Please select a role')
+        else:
+            value.pop('role', None)
+
         value['representation_name'] = affiliation_list.name if affiliation_list else ''
         value['affiliation'] = affiliation
         return RegistrationFormFieldBase.process_form_data(self, registration, value, old_data, billable_items_locked)
@@ -121,17 +170,19 @@ class RepresentationField(RegistrationFormFieldBase):
     def get_friendly_data(self, registration_data, for_humans=False, for_search=False):
         representation_name = registration_data.data.get('representation_name', '')
         affiliation_name = registration_data.data.get('affiliation', {}).get('text', '')
-        if representation_name and affiliation_name:
-            return f'{representation_name} - {affiliation_name}'
-        return representation_name or affiliation_name
+        role_name = registration_data.data.get('role', {}).get('name', '')
+        return ' - '.join(item for item in (representation_name, affiliation_name, role_name) if item)
 
     def create_sql_filter(self, data_list):
         representation_name = db.func.coalesce(RegistrationData.data['representation_name'].astext, '')
         affiliation_name = db.func.coalesce(RegistrationData.data['affiliation']['text'].astext, '')
+        role_name = db.func.coalesce(RegistrationData.data['role']['name'].astext, '')
         return db.or_(
             representation_name.in_(data_list),
             affiliation_name.in_(data_list),
+            role_name.in_(data_list),
             db.func.concat(representation_name, ' - ', affiliation_name).in_(data_list),
+            db.func.concat(representation_name, ' - ', affiliation_name, ' - ', role_name).in_(data_list),
         )
 
 
@@ -145,6 +196,8 @@ class RepresentationRegistrationListItem(CustomRegistrationListItem):
             return data.get('representation_name', '')
         elif self.value_name == 'affiliation':
             return data.get('affiliation', {}).get('text', '')
+        elif self.value_name == 'role':
+            return data.get('role', {}).get('name', '')
         else:
             raise ValueError(f'Unexpected representation list item: {self.value_name}')
 
@@ -188,5 +241,15 @@ def iter_representation_reglist_items(regform):
                 'name': f'affiliation_extras_representation_{field.id}_affiliation',
                 'title': _('{field}: Affiliation').format(field=field.title),
                 'value_name': 'affiliation',
+            },
+        )
+        yield type(
+            f'RepresentationRoleRegistrationListItem{field.id}',
+            (RepresentationRegistrationListItem,),
+            {
+                'field_id': field.id,
+                'name': f'affiliation_extras_representation_{field.id}_role',
+                'title': _('{field}: Role').format(field=field.title),
+                'value_name': 'role',
             },
         )

@@ -19,6 +19,7 @@ from indico_affiliation_extras.fields import (
 )
 from indico_affiliation_extras.models.catalogs import AffiliationCatalog
 from indico_affiliation_extras.models.lists import AffiliationList
+from indico_affiliation_extras.models.roles import AffiliationRole, RoleCatalog
 from indico_affiliation_extras.settings import event_settings
 
 
@@ -30,11 +31,35 @@ def _login(test_client, user):
         sess.set_session_user(user)
 
 
-def _create_affiliation_list(db, event, *, name='Representatives', is_enabled=True, affiliations=()):
+def _create_role_catalog(db, *, name='Roles'):
+    catalog = RoleCatalog(name=name)
+    db.session.add(catalog)
+    db.session.flush()
+    return catalog
+
+
+def _create_role(db, catalog, *, code='role', name='Role', position=1):
+    role = AffiliationRole(catalog=catalog, code=code, name=name, position=position)
+    db.session.add(role)
+    db.session.flush()
+    return role
+
+
+def _create_affiliation_list(
+    db,
+    event,
+    *,
+    name='Representatives',
+    is_enabled=True,
+    affiliations=(),
+    role_catalog=None,
+):
     catalog = AffiliationCatalog(name='Catalog', event=event)
     db.session.add(catalog)
     db.session.flush()
-    affiliation_list = AffiliationList(catalog=catalog, name=name, position=1, is_enabled=is_enabled)
+    affiliation_list = AffiliationList(
+        catalog=catalog, name=name, position=1, is_enabled=is_enabled, role_catalog=role_catalog
+    )
     affiliation_list.affiliations.update(affiliations)
     db.session.add(affiliation_list)
     db.session.flush()
@@ -113,11 +138,14 @@ def test_representation_field_canonicalizes_and_snapshots_value(db, representati
     affiliation = Affiliation(name='CERN')
     db.session.add(affiliation)
     db.session.flush()
+    role_catalog = _create_role_catalog(db)
+    role = _create_role(db, role_catalog, code='chair', name='Chair')
     affiliation_list = _create_affiliation_list(
         db,
         representation_field.registration_form.event,
         name='Delegates',
         affiliations={affiliation},
+        role_catalog=role_catalog,
     )
 
     rv = representation_field.field_impl.process_form_data(
@@ -126,6 +154,7 @@ def test_representation_field_canonicalizes_and_snapshots_value(db, representati
             'representation_id': affiliation_list.id,
             'representation_name': '',
             'affiliation': {'id': affiliation.id, 'text': 'Wrong name'},
+            'role': {'id': role.id, 'name': 'Wrong role'},
         },
     )
 
@@ -133,6 +162,75 @@ def test_representation_field_canonicalizes_and_snapshots_value(db, representati
         'representation_id': affiliation_list.id,
         'representation_name': 'Delegates',
         'affiliation': {'id': affiliation.id, 'text': 'CERN'},
+        'role': {'id': role.id, 'name': 'Chair'},
+    }
+
+
+def test_representation_field_rejects_role_not_in_selected_representation_type(db, representation_field, dummy_reg):
+    role_catalog = _create_role_catalog(db, name='Allowed roles')
+    other_role_catalog = _create_role_catalog(db, name='Other roles')
+    other_role = _create_role(db, other_role_catalog, code='observer', name='Observer')
+    affiliation_list = _create_affiliation_list(
+        db,
+        representation_field.registration_form.event,
+        role_catalog=role_catalog,
+    )
+
+    with pytest.raises(ValidationError, match='Invalid role'):
+        representation_field.field_impl.process_form_data(
+            dummy_reg,
+            {
+                'representation_id': affiliation_list.id,
+                'affiliation': {'id': None, 'text': ''},
+                'role': {'id': other_role.id, 'name': other_role.name},
+            },
+        )
+
+
+def test_representation_field_requires_role_if_configured_and_available(db, representation_field, dummy_reg):
+    representation_field.data = {'require_role': True}
+    role_catalog = _create_role_catalog(db)
+    _create_role(db, role_catalog, code='chair', name='Chair')
+    affiliation_list = _create_affiliation_list(
+        db,
+        representation_field.registration_form.event,
+        role_catalog=role_catalog,
+    )
+
+    with pytest.raises(ValidationError, match='Please select a role'):
+        representation_field.field_impl.process_form_data(
+            dummy_reg,
+            {
+                'representation_id': affiliation_list.id,
+                'affiliation': {'id': None, 'text': ''},
+                'role': {'id': None, 'name': ''},
+            },
+        )
+
+
+def test_representation_field_accepts_empty_role_when_not_required(db, representation_field, dummy_reg):
+    role_catalog = _create_role_catalog(db)
+    _create_role(db, role_catalog, code='chair', name='Chair')
+    affiliation_list = _create_affiliation_list(
+        db,
+        representation_field.registration_form.event,
+        name='Delegates',
+        role_catalog=role_catalog,
+    )
+
+    rv = representation_field.field_impl.process_form_data(
+        dummy_reg,
+        {
+            'representation_id': affiliation_list.id,
+            'affiliation': {'id': None, 'text': ''},
+            'role': {'id': None, 'name': ''},
+        },
+    )
+
+    assert rv['data'] == {
+        'representation_id': affiliation_list.id,
+        'representation_name': 'Delegates',
+        'affiliation': {'id': None, 'text': ''},
     }
 
 
@@ -167,15 +265,16 @@ def test_representation_field_renders_summary_and_reglist_data(representation_fi
             'representation_id': 1,
             'representation_name': 'Delegates',
             'affiliation': {'id': 2, 'text': 'CERN'},
+            'role': {'id': 3, 'name': 'Chair'},
         },
     )
 
     summary = representation_field.field_impl.render_summary_data(registration_data)
     reglist_column = representation_field.field_impl.render_reglist_column(registration_data)
 
-    assert summary == 'Delegates - CERN'
-    assert reglist_column.content == 'Delegates - CERN'
-    assert reglist_column.text_value == 'Delegates - CERN'
+    assert summary == 'Delegates - CERN - Chair'
+    assert reglist_column.content == 'Delegates - CERN - Chair'
+    assert reglist_column.text_value == 'Delegates - CERN - Chair'
 
 
 def test_representation_field_adds_split_reglist_columns(db, dummy_regform, dummy_reg):
@@ -188,6 +287,7 @@ def test_representation_field_adds_split_reglist_columns(db, dummy_regform, dumm
                 'representation_id': 1,
                 'representation_name': 'Delegates',
                 'affiliation': {'id': 2, 'text': 'CERN'},
+                'role': {'id': 3, 'name': 'Chair'},
             },
         )
     )
@@ -198,17 +298,22 @@ def test_representation_field_adds_split_reglist_columns(db, dummy_regform, dumm
     affiliation_item = item_classes[f'affiliation_extras_representation_{field.id}_affiliation'](
         dummy_regform.event, dummy_regform
     )
+    role_item = item_classes[f'affiliation_extras_representation_{field.id}_role'](dummy_regform.event, dummy_regform)
 
     assert list(item_classes) == [
         f'affiliation_extras_representation_{field.id}_type',
         f'affiliation_extras_representation_{field.id}_affiliation',
+        f'affiliation_extras_representation_{field.id}_role',
         f'affiliation_extras_representation_{other_field.id}_type',
         f'affiliation_extras_representation_{other_field.id}_affiliation',
+        f'affiliation_extras_representation_{other_field.id}_role',
     ]
     assert type_item.title == 'Representation: Type'
     assert affiliation_item.title == 'Representation: Affiliation'
+    assert role_item.title == 'Representation: Role'
     assert type_item.load_data([dummy_reg])[dummy_reg].content == 'Delegates'
     assert affiliation_item.load_data([dummy_reg])[dummy_reg].content == 'CERN'
+    assert role_item.load_data([dummy_reg])[dummy_reg].content == 'Chair'
 
 
 def test_representation_field_view_data_preloads_small_affiliation_list(db, dummy_regform):
@@ -235,6 +340,20 @@ def test_representation_field_view_data_does_not_preload_large_affiliation_list(
 
     [representation_type] = field.view_data['representationTypes']
     assert 'affiliations' not in representation_type
+
+
+def test_representation_field_view_data_includes_roles(db, dummy_regform):
+    field = _create_representation_field(db, dummy_regform)
+    role_catalog = _create_role_catalog(db)
+    _create_role(db, role_catalog, code='observer', name='Observer', position=2)
+    _create_role(db, role_catalog, code='chair', name='Chair', position=1)
+    _create_affiliation_list(db, dummy_regform.event, role_catalog=role_catalog)
+
+    [representation_type] = field.view_data['representationTypes']
+
+    assert representation_type['roles'] == [
+        {'id': role.id, 'name': role.name} for role in sorted(role_catalog.roles, key=lambda role: role.position)
+    ]
 
 
 def test_search_keeps_server_side_search_for_non_empty_queries(test_client, db, dummy_regform):

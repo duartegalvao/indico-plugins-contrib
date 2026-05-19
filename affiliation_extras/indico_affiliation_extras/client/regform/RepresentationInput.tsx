@@ -14,18 +14,21 @@ import {Dropdown, Form, Message} from 'semantic-ui-react';
 import {useSelector} from 'react-redux';
 
 import {AffiliationField} from 'indico/react/components';
-import {FinalField} from 'indico/react/forms';
+import {FinalCheckbox, FinalField} from 'indico/react/forms';
 import {Param, Translate} from 'indico/react/i18n';
 import {getStaticData} from 'indico/modules/events/registration/form/selectors';
 
+import RadioGroup from '../components/RadioGroup';
 import './RepresentationInput.module.scss';
 
 type RepresentationType = {
   id: number;
   name: string;
   affiliations?: Array<{id: number; name: string}>;
+  roles?: RoleValue[];
 };
 type AffiliationValue = {id: number | null; text: string};
+type RoleValue = {id: number | null; name: string};
 type StaticData = {
   eventId: number;
   regformId: number;
@@ -35,13 +38,16 @@ type RepresentationValue = {
   representationId: number | null;
   representationName: string;
   affiliation: AffiliationValue;
+  role?: RoleValue;
 };
 
 const EMPTY_AFFILIATION: AffiliationValue = {id: null, text: ''};
+const EMPTY_ROLE: RoleValue = {id: null, name: ''};
 const EMPTY_VALUE: RepresentationValue = {
   representationId: null,
   representationName: '',
   affiliation: EMPTY_AFFILIATION,
+  role: EMPTY_ROLE,
 };
 
 type RepresentationInputComponentProps = {
@@ -50,6 +56,7 @@ type RepresentationInputComponentProps = {
   onChange: (value: RepresentationValue) => void;
   disabled: boolean;
   isRequired: boolean;
+  requireRole: boolean;
   representationTypes: RepresentationType[];
   getSearchAffiliationURL: (params: {q: string; affiliationListId: number}) => string;
 };
@@ -60,6 +67,7 @@ function RepresentationInputComponent({
   onChange,
   disabled,
   isRequired,
+  requireRole,
   representationTypes,
   getSearchAffiliationURL,
 }: RepresentationInputComponentProps) {
@@ -90,6 +98,13 @@ function RepresentationInputComponent({
     });
   }
   const usePreloadedAffiliations = preloadedAffiliationOptions.length > 0;
+  const roleOptions = selectedRepresentation?.roles || [];
+  const roleValue = normalizedValue.role ?? EMPTY_ROLE;
+  const isRoleRequired = requireRole && roleOptions.length > 0;
+  const radioRoleOptions = roleOptions.map(role => ({
+    value: role.id!,
+    label: role.name,
+  }));
 
   const handleRepresentationChange = (_: unknown, {value: selectedValue}: {value?: unknown}) => {
     const nextRepresentationId = typeof selectedValue === 'number' ? selectedValue : null;
@@ -100,6 +115,7 @@ function RepresentationInputComponent({
       representationId: nextRepresentationId,
       representationName: selectedRepresentation?.name ?? '',
       affiliation: EMPTY_AFFILIATION,
+      role: EMPTY_ROLE,
     });
   };
 
@@ -107,6 +123,17 @@ function RepresentationInputComponent({
     onChange({
       ...normalizedValue,
       affiliation: nextAffiliation ?? EMPTY_AFFILIATION,
+    });
+  };
+
+  const handleRoleChange = (nextRoleId: string | number | null) => {
+    const nextRole =
+      typeof nextRoleId === 'number'
+        ? (roleOptions.find(role => role.id === nextRoleId) ?? EMPTY_ROLE)
+        : EMPTY_ROLE;
+    onChange({
+      ...normalizedValue,
+      role: nextRole,
     });
   };
 
@@ -154,6 +181,18 @@ function RepresentationInputComponent({
           />
         </Form.Field>
       )}
+      {!!selectedRepresentation && roleOptions.length > 0 && (
+        <RadioGroup
+          id={`${id}-role`}
+          value={roleValue.id}
+          onChange={handleRoleChange}
+          disabled={disabled}
+          required={isRoleRequired}
+          label={Translate.string('Role')}
+          noneLabel={Translate.string('None', 'Choice')}
+          options={radioRoleOptions}
+        />
+      )}
     </>
   );
 }
@@ -164,6 +203,7 @@ type RepresentationInputProps = {
   htmlName: string;
   disabled?: boolean;
   isRequired: boolean;
+  requireRole?: boolean;
   representationTypes?: RepresentationType[];
   searchContext?: Record<string, unknown>;
 };
@@ -173,15 +213,22 @@ export function RepresentationSettings() {
   const catalogsURL = manageAffiliationsURL({event_id: eventId});
 
   return (
-    <Message info>
-      <Translate>
-        Representation types are configured in the{' '}
-        <Param name="url" wrapper={<a href={catalogsURL} />}>
-          affiliation catalogs settings
-        </Param>
-        .
-      </Translate>
-    </Message>
+    <>
+      <Message info>
+        <Translate>
+          Representation types are configured in the{' '}
+          <Param name="url" wrapper={<a href={catalogsURL} />}>
+            affiliation catalogs settings
+          </Param>
+          .
+        </Translate>
+      </Message>
+      <FinalCheckbox
+        name="requireRole"
+        label={Translate.string('Require a role (if available)')}
+        value={undefined}
+      />
+    </>
   );
 }
 
@@ -191,6 +238,7 @@ export default function RepresentationInput({
   htmlName,
   disabled = false,
   isRequired,
+  requireRole = false,
   representationTypes = [],
   searchContext = {},
 }: RepresentationInputProps) {
@@ -205,6 +253,7 @@ export default function RepresentationInput({
       undefinedValue={EMPTY_VALUE}
       disabled={disabled}
       isRequired={isRequired}
+      requireRole={requireRole}
       representationTypes={representationTypes}
       getSearchAffiliationURL={({q, affiliationListId}: {q: string; affiliationListId: number}) =>
         searchURL({

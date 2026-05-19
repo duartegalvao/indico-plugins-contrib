@@ -15,6 +15,9 @@ const representationField = {
   icon: 'id-badge',
   inputComponent: RepresentationInput,
   settingsComponent: RepresentationSettings,
+  settingsFormInitialData: {
+    requireRole: false,
+  },
 };
 
 export default representationField;
