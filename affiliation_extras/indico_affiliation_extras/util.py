@@ -25,6 +25,7 @@ from indico.modules.categories.models.categories import Category
 from indico.modules.events.models.events import Event
 from indico.modules.files.models.files import File
 from indico.modules.users.models.affiliations import Affiliation
+from indico.modules.users.models.users import User
 from indico.util.i18n import _
 from indico.util.signing import secure_serializer
 
@@ -174,6 +175,13 @@ def serialize_contact_lists(contact_lists: list[AffiliationContactList]) -> dict
     }
 
 
+def _diff_list_names(old: dict[int, dict], new: dict[int, dict]) -> tuple[list[str], list[str]] | None:
+    """Return the (old, new) sorted name summaries if they differ, else None."""
+    old_names = sorted((item['name'] for item in old.values()), key=str.lower)
+    new_names = sorted((item['name'] for item in new.values()), key=str.lower)
+    return (old_names, new_names) if old_names != new_names else None
+
+
 def populate_contacts(affiliation: Affiliation, contact_lists: list[dict]) -> tuple[_Changes, _LogFields]:
     existing_by_id = {item.id: item for item in affiliation.contact_lists}
     used_ids = set()
@@ -208,10 +216,8 @@ def populate_contacts(affiliation: Affiliation, contact_lists: list[dict]) -> tu
     log_fields: _LogFields = {}
 
     # List names changes
-    old_summary = sorted((lst['name'] for lst in old_contact_lists.values()), key=str.lower)
-    new_summary = sorted((lst['name'] for lst in new_contact_lists.values()), key=str.lower)
-    if old_summary != new_summary:
-        changes['contact_lists'] = (old_summary, new_summary)
+    if names := _diff_list_names(old_contact_lists, new_contact_lists):
+        changes['contact_lists'] = names
 
     # Individual list changes
     for id_ in old_contact_lists.keys() | new_contact_lists.keys():
@@ -299,10 +305,8 @@ def _get_catalog_list_changes(old_lists: dict[int, dict], new_lists: dict[int, d
     changes = {}
     log_fields: _LogFields = {}
 
-    old_summary = sorted((lst['name'] for lst in old_lists.values()), key=str.lower)
-    new_summary = sorted((lst['name'] for lst in new_lists.values()), key=str.lower)
-    if old_summary != new_summary:
-        changes['lists'] = (old_summary, new_summary)
+    if names := _diff_list_names(old_lists, new_lists):
+        changes['lists'] = names
 
     for id_ in old_lists.keys() | new_lists.keys():
         old_data = old_lists.get(id_, {})
@@ -356,6 +360,16 @@ def resolve_affiliations(
         for group in groups:
             all_affiliations.update(group.affiliations)
     return sorted(all_affiliations, key=lambda affiliation: affiliation.name.lower())
+
+
+def get_users_by_affiliation(affiliations) -> dict[int, list[User]]:
+    """Group users by their affiliation id in a single query."""
+    aff_ids = [affiliation.id for affiliation in affiliations]
+    users_by_affiliation: dict[int, list[User]] = {aff_id: [] for aff_id in aff_ids}
+    if aff_ids:
+        for user in User.query.filter(User.affiliation_id.in_(aff_ids)):
+            users_by_affiliation[user.affiliation_id].append(user)
+    return users_by_affiliation
 
 
 def resolve_object_path(obj: dict | list, path: str) -> str:
