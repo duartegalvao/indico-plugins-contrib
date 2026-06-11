@@ -168,7 +168,7 @@ export default function AddAffiliationsModal({
     if (e.key === 'Enter') {
       e.preventDefault();
       if (hasAnyInput && !filtersUnchanged) {
-        applySearch();
+        void applySearch();
       }
     }
   };

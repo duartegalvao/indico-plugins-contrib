@@ -9,11 +9,10 @@ import resolveAffiliationsURL from 'indico-url:plugin_affiliation_extras.api_res
 
 import _ from 'lodash';
 import React, {useMemo, useState} from 'react';
-import {Button, Confirm, Icon, Input, Loader, Modal, Popup} from 'semantic-ui-react';
+import {Button, Confirm, Icon, Input, Modal, Popup} from 'semantic-ui-react';
 
 import {FinalField} from 'indico/react/forms';
 import {FinalModalForm} from 'indico/react/forms/final-form';
-import {useIndicoAxios} from 'indico/react/hooks';
 import {Translate} from 'indico/react/i18n';
 import {SortableWrapper, useSortableItem} from 'indico/react/sortable';
 import {Affiliation} from 'indico/modules/users/affiliations/types';
