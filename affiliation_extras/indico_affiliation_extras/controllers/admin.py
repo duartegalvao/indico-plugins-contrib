@@ -10,7 +10,7 @@
 import mimetypes
 from uuid import UUID
 
-from flask import jsonify, session
+from flask import jsonify, request, session
 from marshmallow import fields, validate
 from webargs.flaskparser import abort
 
@@ -31,6 +31,7 @@ from indico.util.marshmallow import LowercaseString, ModelField, ModelList, no_r
 from indico.util.placeholders import get_sorted_placeholders, replace_placeholders
 from indico.util.string import validate_email
 from indico.web.args import use_kwargs, use_rh_args, use_rh_kwargs
+from indico.web.rh import RHProtected
 
 from indico_affiliation_extras.models.groups import AffiliationGroup
 from indico_affiliation_extras.models.tags import AffiliationTag
@@ -175,7 +176,23 @@ class RHEmailRepresentativesImageUpload(UploadFileMixin, RHAdminBase):
         return content_type.startswith('image/')
 
 
-class RHAffiliationGroups(RHAdminBase):
+class RHAffiliationReferenceBase(RHAdminBase):
+    """Read affiliation reference data as any authenticated user; write as admin.
+
+    The catalog editor (event/category managers) and the invite-by-affiliation dialog
+    (registration-form managers) need to list groups and tags to build a selection, so
+    the read endpoints cannot stay admin-only. Creating, editing or deleting groups and
+    tags remains restricted to administrators.
+    """
+
+    def _check_access(self):
+        if request.method == 'GET':
+            RHProtected._check_access(self)
+        else:
+            super()._check_access()
+
+
+class RHAffiliationGroups(RHAffiliationReferenceBase):
     """Return all affiliation groups."""
 
     def _process_GET(self):
@@ -248,7 +265,7 @@ class RHAffiliationGroup(RHAdminBase):
         return '', 204
 
 
-class RHAffiliationTags(RHAdminBase):
+class RHAffiliationTags(RHAffiliationReferenceBase):
     """Return all affiliation tags."""
 
     def _process_GET(self):
@@ -316,8 +333,12 @@ class RHContactListNames(RHAdminBase):
         return jsonify(get_contact_list_names())
 
 
-class RHSearchAffiliationsExtended(RHAdminBase):
-    """Extended affiliation search with optional group/tag/country filters."""
+class RHSearchAffiliationsExtended(RHProtected):
+    """Extended affiliation search with optional group/tag/country filters.
+
+    Read-only lookup used by the catalog editor and the invite-by-affiliation dialog, so
+    it is available to any authenticated user rather than administrators only.
+    """
 
     @use_kwargs(
         {
