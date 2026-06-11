@@ -45,7 +45,7 @@ from indico_affiliation_extras.controllers.regform import (
 
 blueprint = IndicoPluginBlueprint('affiliation_extras', __name__)
 
-_admin_prefix = '/api/admin/plugins/affiliation_extras'
+_admin_prefix = '/admin/plugins/affiliation_extras'
 
 
 @memoize
