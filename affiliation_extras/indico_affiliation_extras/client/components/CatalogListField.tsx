@@ -91,7 +91,7 @@ function CatalogListRow({
 
   return (
     <tr ref={itemRef} style={{...style}} styleName={isEnabled ? null : 'row-disabled'}>
-      <td ref={handleRef} style={{width: '1.5em', cursor: 'grab'}}>
+      <td ref={handleRef} styleName="drag-handle">
         <Icon name="bars" color="grey" title={Translate.string('Drag to reorder')} />
       </td>
       <td>
@@ -103,11 +103,7 @@ function CatalogListRow({
         />
       </td>
       <td>
-        <MembersDisplay
-          groups={value.groups}
-          tags={value.tags}
-          affiliationCount={value.affiliations.length}
-        />
+        <MembersDisplay groups={value.groups} tags={value.tags} affiliations={value.affiliations} />
       </td>
       <td style={{whiteSpace: 'nowrap', width: '1px'}}>
         <Popup
