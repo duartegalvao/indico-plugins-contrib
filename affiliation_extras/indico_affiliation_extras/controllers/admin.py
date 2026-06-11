@@ -21,10 +21,12 @@ from indico.core.plugins import get_plugin_template_module
 from indico.modules.admin import RHAdminBase
 from indico.modules.files.controllers import UploadFileMixin
 from indico.modules.files.models.files import File
+from indico.modules.files.util import validate_upload_file_size
 from indico.modules.logs.models.entries import AppLogEntry, AppLogRealm, LogKind
 from indico.modules.logs.util import make_diff_log
 from indico.modules.users.models.affiliations import Affiliation
 from indico.modules.users.schemas import AffiliationSchema
+from indico.util.i18n import _
 from indico.util.marshmallow import LowercaseString, ModelField, ModelList, no_relative_urls, not_empty
 from indico.util.placeholders import get_sorted_placeholders, replace_placeholders
 from indico.util.string import validate_email
@@ -158,10 +160,11 @@ class RHEmailRepresentativesImageUpload(UploadFileMixin, RHAdminBase):
 
     @use_kwargs({'file': fields.Raw(required=True, data_key='upload')}, location='files')
     def _process(self, file):
-        response, __ = UploadFileMixin._process.__wrapped__(self, file)
-        file_uuid = response.get_json()['uuid']
-        file_obj = File.query.filter_by(uuid=UUID(file_uuid)).one()
-        db.session.refresh(file_obj)
+        if not validate_upload_file_size(file):
+            abort(422, messages={'file': [_('The uploaded file is too large')]})
+        response, __ = self._save_file(file, file.stream)
+        file_obj = File.query.filter_by(uuid=UUID(response.get_json()['uuid'])).one()
+        # TinyMCE expects the URL under `url`, not the default file schema
         return jsonify(url=file_obj.signed_download_url)
 
     def get_file_context(self):
