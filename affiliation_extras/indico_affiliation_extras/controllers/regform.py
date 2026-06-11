@@ -7,15 +7,13 @@
 
 # Controllers for registration form affiliation endpoints.
 
-from email.utils import formataddr
 
-from flask import jsonify, session
+from flask import jsonify
 from marshmallow import fields, validate
 from sqlalchemy.orm import joinedload, subqueryload
 from webargs.flaskparser import abort
 from werkzeug.exceptions import NotFound
 
-from indico.core.config import config
 from indico.core.db import db
 from indico.modules.admin import RHAdminBase
 from indico.modules.events.registration.controllers.display import RHRegistrationFormFieldActionBase
@@ -23,7 +21,6 @@ from indico.modules.events.registration.controllers.management import (
     RHManageRegFormBase,
     RHManageRegistrationFieldActionBase,
 )
-from indico.modules.events.registration.models.forms import RegistrationForm
 from indico.modules.events.registration.models.invitations import InvitationState, RegistrationInvitation
 from indico.modules.events.registration.schemas import RegistrationInvitationSchema
 from indico.modules.events.registration.util import create_invitation
@@ -41,7 +38,7 @@ from indico_affiliation_extras.schemas import (
     AffiliationTagWithAffiliationsSchema,
     AffiliationWithUsersSchema,
 )
-from indico_affiliation_extras.util import get_default_catalog, resolve_affiliations
+from indico_affiliation_extras.util import get_default_catalog, get_users_by_affiliation, resolve_affiliations
 
 
 class SearchRepresentationAffiliationsMixin(SearchAffiliationsMixin):
@@ -96,7 +93,8 @@ class RHRegFormAffiliations(RHManageRegFormBase):
             .order_by(db.func.indico.indico_unaccent(db.func.lower(Affiliation.name)))
             .all()
         )
-        return AffiliationWithUsersSchema(many=True).jsonify(affiliations)
+        context = {'users_by_affiliation': get_users_by_affiliation(affiliations)}
+        return AffiliationWithUsersSchema(many=True, context=context).jsonify(affiliations)
 
 
 class RHRegFormAffiliationGroups(RHManageRegFormBase):
@@ -110,7 +108,9 @@ class RHRegFormAffiliationGroups(RHManageRegFormBase):
             .order_by(db.func.indico.indico_unaccent(db.func.lower(AffiliationGroup.name)))
             .all()
         )
-        return AffiliationGroupWithAffiliationsSchema(many=True).jsonify(groups)
+        affiliations = {aff for group in groups for aff in group.affiliations}
+        context = {'users_by_affiliation': get_users_by_affiliation(affiliations)}
+        return AffiliationGroupWithAffiliationsSchema(many=True, context=context).jsonify(groups)
 
 
 class RHRegFormAffiliationTags(RHManageRegFormBase):
@@ -123,7 +123,9 @@ class RHRegFormAffiliationTags(RHManageRegFormBase):
             .order_by(db.func.indico.indico_unaccent(db.func.lower(AffiliationTag.name)))
             .all()
         )
-        return AffiliationTagWithAffiliationsSchema(many=True).jsonify(tags)
+        affiliations = {aff for tag in tags for aff in tag.affiliations}
+        context = {'users_by_affiliation': get_users_by_affiliation(affiliations)}
+        return AffiliationTagWithAffiliationsSchema(many=True, context=context).jsonify(tags)
 
 
 class RHAffiliationUserCountByIds(RHManageRegFormBase):
@@ -166,18 +168,8 @@ class RHAffiliationUserCount(RHAdminBase):
         return jsonify(count=count)
 
 
-class RHInviteByAffiliation(RHAdminBase):
+class RHInviteByAffiliation(RHManageRegFormBase):
     """Invite users by affiliation, group, or tag membership."""
-
-    @use_kwargs(
-        {'event_id': fields.Integer(required=True), 'reg_form_id': fields.Integer(required=True)}, location='view_args'
-    )
-    def _process_args(self, event_id, reg_form_id):
-        RHAdminBase._process_args(self)
-        self.regform = RegistrationForm.get_or_404(reg_form_id)
-        if self.regform.event_id != event_id:
-            abort(404)
-        self.event = self.regform.event
 
     @use_kwargs({
         'sender_address': fields.String(required=True, validate=not_empty),
@@ -202,7 +194,7 @@ class RHInviteByAffiliation(RHAdminBase):
         lock_email,
         affiliations,
     ):
-        sender_address = self._get_allowed_sender_emails(for_sending=True).get(sender_address)
+        sender_address = self.event.get_allowed_sender_emails(_for_sending=True).get(sender_address)
         if not sender_address:
             abort(422, messages={'sender_address': ['Invalid sender address']})
         if not self.regform.moderation_enabled:
@@ -258,22 +250,3 @@ class RHInviteByAffiliation(RHAdminBase):
             has_pending_invitations=any(i.state == InvitationState.pending for i in invitations),
             invitation_list=RegistrationInvitationSchema(many=True).dump(invitations),
         )
-
-    def _get_allowed_sender_emails(self, *, for_sending=False):
-        emails = {}
-        if session.user:
-            emails[session.user.email] = session.user.full_name
-        for email in (config.SUPPORT_EMAIL, config.PUBLIC_SUPPORT_EMAIL, config.NO_REPLY_EMAIL):
-            if email:
-                emails.setdefault(email, None)
-        formatted = {
-            email.strip().lower(): (
-                formataddr((name, email.strip().lower()))
-                if for_sending and name
-                else (f'{name} <{email}>' if name else email)
-            )
-            for email, name in emails.items()
-            if email and email.strip()
-        }
-        own = session.user.email if session.user else None
-        return dict(sorted(formatted.items(), key=lambda x: (x[0] != own, x[1].lower())))
