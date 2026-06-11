@@ -5,7 +5,10 @@
 // redistribute them and/or modify them under the terms of the;
 // MIT License see the LICENSE file for more details.
 
+import affiliationGroupsURL from 'indico-url:plugin_affiliation_extras.api_scoped_affiliation_groups';
 import resolveAffiliationsURL from 'indico-url:plugin_affiliation_extras.api_resolve_affiliations';
+import searchAffiliationsURL from 'indico-url:plugin_affiliation_extras.api_scoped_search_affiliations';
+import affiliationTagsURL from 'indico-url:plugin_affiliation_extras.api_scoped_affiliation_tags';
 
 import _ from 'lodash';
 import React, {useMemo, useState} from 'react';
@@ -54,6 +57,9 @@ interface CatalogListRowProps {
   value: CatalogItem;
   index: number;
   targetLocator: Record<string, number>;
+  groupsURL: string;
+  tagsURL: string;
+  searchURL: string;
   onChange: (value: CatalogItem) => void;
   onDelete: () => void;
   onMove: (sourceIndex: number, targetIndex: number) => void;
@@ -64,6 +70,9 @@ function CatalogListRow({
   value,
   index,
   targetLocator,
+  groupsURL,
+  tagsURL,
+  searchURL,
   onChange,
   onDelete,
   onMove,
@@ -183,7 +192,13 @@ function CatalogListRow({
             }
             submitLabel={Translate.string('Apply')}
           >
-            <FinalAffiliationList name="members" required />
+            <FinalAffiliationList
+              name="members"
+              groupsURL={groupsURL}
+              tagsURL={tagsURL}
+              searchURL={searchURL}
+              required
+            />
           </FinalModalForm>
         )}
         {modalOpen === 'affiliations' && (
@@ -227,6 +242,9 @@ function CatalogListField({
   targetLocator: Record<string, number>;
 }) {
   const emptyDefault = useMemo(makeDefaultList, []);
+  const groupsURL = affiliationGroupsURL(targetLocator);
+  const tagsURL = affiliationTagsURL(targetLocator);
+  const searchURL = searchAffiliationsURL(targetLocator);
   const values = _value?.length ? _value : [emptyDefault];
   const normalizePositions = (items: CatalogItem[]) =>
     items.map((item, idx) => ({
@@ -280,6 +298,9 @@ function CatalogListField({
                   index={idx}
                   value={value}
                   targetLocator={targetLocator}
+                  groupsURL={groupsURL}
+                  tagsURL={tagsURL}
+                  searchURL={searchURL}
                   canDelete={normalizedValues.length > 1}
                   onChange={newValue =>
                     handleChange(normalizedValues.map((v, i) => (i === idx ? newValue : v)))

@@ -5,8 +5,11 @@
 // redistribute them and/or modify them under the terms of the;
 // MIT License see the LICENSE file for more details.
 
-import inviteByAffiliationURL from 'indico-url:plugin_affiliation_extras.api_invite_by_affiliation';
+import affiliationGroupsURL from 'indico-url:plugin_affiliation_extras.api_scoped_affiliation_groups';
+import searchAffiliationsURL from 'indico-url:plugin_affiliation_extras.api_scoped_search_affiliations';
+import affiliationTagsURL from 'indico-url:plugin_affiliation_extras.api_scoped_affiliation_tags';
 import affiliationUserCountURL from 'indico-url:plugin_affiliation_extras.api_affiliation_user_count';
+import inviteByAffiliationURL from 'indico-url:plugin_affiliation_extras.api_invite_by_affiliation';
 
 import React from 'react';
 
@@ -16,6 +19,9 @@ import FinalAffiliationList from '../components/AffiliationListField';
 
 const AffiliationField = ({eventId, regformId}) => {
   const countURL = affiliationUserCountURL({event_id: eventId, reg_form_id: regformId});
+  const groupsURL = affiliationGroupsURL({event_id: eventId});
+  const tagsURL = affiliationTagsURL({event_id: eventId});
+  const searchURL = searchAffiliationsURL({event_id: eventId});
   const renderItemExtra = item =>
     item.extraInfo !== undefined ? (
       <>
@@ -36,6 +42,9 @@ const AffiliationField = ({eventId, regformId}) => {
     <FinalAffiliationList
       name="affiliations"
       showExtraInfo
+      groupsURL={groupsURL}
+      tagsURL={tagsURL}
+      searchURL={searchURL}
       userCountURL={countURL}
       renderItemExtra={renderItemExtra}
     />

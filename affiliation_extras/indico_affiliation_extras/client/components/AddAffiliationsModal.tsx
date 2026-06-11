@@ -5,8 +5,6 @@
 // redistribute them and/or modify them under the terms of the;
 // MIT License see the LICENSE file for more details.
 
-import searchAffiliationsExtendedURL from 'indico-url:plugin_affiliation_extras.api_search_affiliations_extended';
-
 import React, {useState} from 'react';
 import {
   Button,
@@ -54,6 +52,7 @@ interface AddAffiliationsModalProps {
   onClose: () => void;
   onConfirm: (selection: AffiliationWithExtraInfo[]) => void;
   initialValues: AffiliationWithExtraInfo[];
+  searchURL: string;
   groups: GroupInfo[] | null;
   tags: TagInfo[] | null;
   extraInfoURL?: string | null;
@@ -92,6 +91,7 @@ export default function AddAffiliationsModal({
   onClose,
   onConfirm,
   initialValues,
+  searchURL,
   groups,
   tags,
   extraInfoURL = null,
@@ -139,7 +139,7 @@ export default function AddAffiliationsModal({
     setAffiliations([]);
     try {
       const {data} = await indicoAxios.get<AffiliationWithExtraInfo[]>(
-        searchAffiliationsExtendedURL({}),
+        searchURL,
         {
           params: {
             q: newFilters.q,

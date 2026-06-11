@@ -5,9 +5,6 @@
 // redistribute them and/or modify them under the terms of the;
 // MIT License see the LICENSE file for more details.
 
-import groupsURL from 'indico-url:plugin_affiliation_extras.api_affiliation_groups';
-import tagsURL from 'indico-url:plugin_affiliation_extras.api_affiliation_tags';
-
 import _ from 'lodash';
 import React, {useEffect, useMemo, useState} from 'react';
 import {Button, Dropdown, Icon, Label, List, Segment} from 'semantic-ui-react';
@@ -37,6 +34,9 @@ function AffiliationListField({
   onBlur,
   disabled = false,
   showExtraInfo = false,
+  groupsURL,
+  tagsURL,
+  searchURL,
   userCountURL,
   modalExtraInfoURL,
   renderItemExtra,
@@ -47,12 +47,15 @@ function AffiliationListField({
   onBlur?: () => void;
   disabled?: boolean;
   showExtraInfo?: boolean;
+  groupsURL: string;
+  tagsURL: string;
+  searchURL: string;
   userCountURL?: string;
   modalExtraInfoURL?: string;
   renderItemExtra?: (item: Affiliation) => React.ReactNode;
 }) {
-  const {data: groups} = useIndicoAxios(groupsURL({}));
-  const {data: tags} = useIndicoAxios(tagsURL({}));
+  const {data: groups} = useIndicoAxios(groupsURL);
+  const {data: tags} = useIndicoAxios(tagsURL);
   const [affiliationModalOpen, setAffiliationModalOpen] = useState(false);
 
   /** Notify React Final Form that this field has been interacted with. */
@@ -238,6 +241,7 @@ function AffiliationListField({
             markTouched();
           }}
           initialValues={value.affiliations}
+          searchURL={searchURL}
           groups={groups ?? null}
           tags={tags ?? null}
           extraInfoURL={modalExtraInfoURL}

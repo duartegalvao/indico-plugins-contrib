@@ -13,12 +13,15 @@ from uuid import UUID
 from flask import jsonify, request, session
 from marshmallow import fields, validate
 from webargs.flaskparser import abort
+from werkzeug.exceptions import Forbidden
 
 from indico.core.db import db
 from indico.core.db.sqlalchemy.searchable import fts_matches
 from indico.core.notifications import make_email, send_email
 from indico.core.plugins import get_plugin_template_module
 from indico.modules.admin import RHAdminBase
+from indico.modules.categories.models.categories import Category
+from indico.modules.events.models.events import Event
 from indico.modules.files.controllers import UploadFileMixin
 from indico.modules.files.models.files import File
 from indico.modules.files.util import validate_upload_file_size
@@ -176,23 +179,7 @@ class RHEmailRepresentativesImageUpload(UploadFileMixin, RHAdminBase):
         return content_type.startswith('image/')
 
 
-class RHAffiliationReferenceBase(RHAdminBase):
-    """Read affiliation reference data as any authenticated user; write as admin.
-
-    The catalog editor (event/category managers) and the invite-by-affiliation dialog
-    (registration-form managers) need to list groups and tags to build a selection, so
-    the read endpoints cannot stay admin-only. Creating, editing or deleting groups and
-    tags remains restricted to administrators.
-    """
-
-    def _check_access(self):
-        if request.method == 'GET':
-            RHProtected._check_access(self)
-        else:
-            super()._check_access()
-
-
-class RHAffiliationGroups(RHAffiliationReferenceBase):
+class RHAffiliationGroups(RHAdminBase):
     """Return all affiliation groups."""
 
     def _process_GET(self):
@@ -265,7 +252,7 @@ class RHAffiliationGroup(RHAdminBase):
         return '', 204
 
 
-class RHAffiliationTags(RHAffiliationReferenceBase):
+class RHAffiliationTags(RHAdminBase):
     """Return all affiliation tags."""
 
     def _process_GET(self):
@@ -333,36 +320,89 @@ class RHContactListNames(RHAdminBase):
         return jsonify(get_contact_list_names())
 
 
-class RHSearchAffiliationsExtended(RHProtected):
-    """Extended affiliation search with optional group/tag/country filters.
+def _search_affiliations_extended(q, group_ids, tag_ids, country_code):
+    """Run the extended affiliation search and return a JSON response."""
+    basic_fields = ('id', 'name', 'street', 'postcode', 'city', 'country_code', 'meta')
+    if not any([q, group_ids, tag_ids, country_code]):
+        return AffiliationSchema(many=True, only=basic_fields).jsonify([])
 
-    Read-only lookup used by the catalog editor and the invite-by-affiliation dialog, so
-    it is available to any authenticated user rather than administrators only.
+    query = Affiliation.query.filter(~Affiliation.is_deleted)
+    if country_code:
+        query = query.filter(Affiliation.country_code == country_code)
+    if tag_ids:
+        query = query.filter(Affiliation.tags.any(AffiliationTag.id.in_(tag_ids)))
+    if group_ids:
+        query = query.filter(Affiliation.groups.any(AffiliationGroup.id.in_(group_ids)))
+    if q:
+        query = query.filter(fts_matches(Affiliation.searchable_names, q))
+    query = query.order_by(db.func.indico.indico_unaccent(db.func.lower(Affiliation.name)))
+
+    return AffiliationSchema(many=True, only=basic_fields).jsonify(query.all())
+
+
+_extended_search_args = {
+    'q': fields.String(load_default=''),
+    'group_ids': fields.List(fields.Integer(), load_default=list),
+    'tag_ids': fields.List(fields.Integer(), load_default=list),
+    'country_code': fields.String(load_default=''),
+}
+
+
+class RHSearchAffiliationsExtended(RHAdminBase):
+    """Extended affiliation search with optional group/tag/country filters (admin-only)."""
+
+    @use_kwargs(_extended_search_args, location='query')
+    def _process(self, q, group_ids, tag_ids, country_code):
+        return _search_affiliations_extended(q, group_ids, tag_ids, country_code)
+
+
+class RHScopedAffiliationReferenceBase(RHProtected):
+    """Read affiliation reference data scoped to an event or category.
+
+    The catalog editor (event/category managers) and the invite-by-affiliation dialog
+    (registration-form managers) read groups, tags and affiliations to build a selection.
+    Access is gated to the managers of the surrounding event or category so the data is
+    not exposed to arbitrary authenticated users. These are read-only lookups, so the
+    event-lock check is intentionally skipped.
     """
 
-    @use_kwargs(
-        {
-            'q': fields.String(load_default=''),
-            'group_ids': fields.List(fields.Integer(), load_default=list),
-            'tag_ids': fields.List(fields.Integer(), load_default=list),
-            'country_code': fields.String(load_default=''),
-        },
-        location='query',
-    )
+    def _check_access(self):
+        super()._check_access()
+        object_type = request.view_args['object_type']
+        if object_type == 'event':
+            event = Event.get_or_404(request.view_args['event_id'])
+            if not (
+                event.can_manage(session.user)
+                or event.can_manage(session.user, permission='registration')
+            ):
+                raise Forbidden
+        else:
+            category = Category.get_or_404(request.view_args['category_id'])
+            if not category.can_manage(session.user):
+                raise Forbidden
+
+
+class RHScopedAffiliationGroups(RHScopedAffiliationReferenceBase):
+    """Return all affiliation groups (scoped to an event or category)."""
+
+    def _process_GET(self):
+        groups = AffiliationGroup.query.filter(~AffiliationGroup.is_deleted).order_by(
+            db.func.indico.indico_unaccent(db.func.lower(AffiliationGroup.name))
+        )
+        return AffiliationGroupSchema(many=True).jsonify(groups)
+
+
+class RHScopedAffiliationTags(RHScopedAffiliationReferenceBase):
+    """Return all affiliation tags (scoped to an event or category)."""
+
+    def _process_GET(self):
+        tags = AffiliationTag.query.order_by(db.func.indico.indico_unaccent(db.func.lower(AffiliationTag.name)))
+        return AffiliationTagSchema(many=True).jsonify(tags)
+
+
+class RHScopedSearchAffiliationsExtended(RHScopedAffiliationReferenceBase):
+    """Extended affiliation search (scoped to an event or category)."""
+
+    @use_kwargs(_extended_search_args, location='query')
     def _process(self, q, group_ids, tag_ids, country_code):
-        basic_fields = ('id', 'name', 'street', 'postcode', 'city', 'country_code', 'meta')
-        if not any([q, group_ids, tag_ids, country_code]):
-            return AffiliationSchema(many=True, only=basic_fields).jsonify([])
-
-        query = Affiliation.query.filter(~Affiliation.is_deleted)
-        if country_code:
-            query = query.filter(Affiliation.country_code == country_code)
-        if tag_ids:
-            query = query.filter(Affiliation.tags.any(AffiliationTag.id.in_(tag_ids)))
-        if group_ids:
-            query = query.filter(Affiliation.groups.any(AffiliationGroup.id.in_(group_ids)))
-        if q:
-            query = query.filter(fts_matches(Affiliation.searchable_names, q))
-        query = query.order_by(db.func.indico.indico_unaccent(db.func.lower(Affiliation.name)))
-
-        return AffiliationSchema(many=True, only=basic_fields).jsonify(query.all())
+        return _search_affiliations_extended(q, group_ids, tag_ids, country_code)
