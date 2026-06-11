@@ -7,7 +7,6 @@
 
 import groupsURL from 'indico-url:plugin_affiliation_extras.api_affiliation_groups';
 import tagsURL from 'indico-url:plugin_affiliation_extras.api_affiliation_tags';
-import aggregateExtraInfoURL from 'indico-url:plugin_affiliation_extras.api_affiliation_user_count';
 
 import _ from 'lodash';
 import React, {useEffect, useMemo, useState} from 'react';
@@ -38,7 +37,8 @@ function AffiliationListField({
   onBlur,
   disabled = false,
   showExtraInfo = false,
-  extraInfoURL,
+  userCountURL,
+  modalExtraInfoURL,
   renderItemExtra,
 }: {
   value: AffiliationListValue;
@@ -47,7 +47,8 @@ function AffiliationListField({
   onBlur?: () => void;
   disabled?: boolean;
   showExtraInfo?: boolean;
-  extraInfoURL?: string;
+  userCountURL?: string;
+  modalExtraInfoURL?: string;
   renderItemExtra?: (item: Affiliation) => React.ReactNode;
 }) {
   const {data: groups} = useIndicoAxios(groupsURL({}));
@@ -108,9 +109,9 @@ function AffiliationListField({
    */
   const extraInfoConfig = useMemo(
     () =>
-      showExtraInfo && (affiliationKey || groupKey || tagKey)
+      showExtraInfo && userCountURL && (affiliationKey || groupKey || tagKey)
         ? {
-            url: aggregateExtraInfoURL({}),
+            url: userCountURL,
             method: 'POST',
             data: {
               affiliation_ids: value.affiliations.map(a => a.id),
@@ -119,7 +120,7 @@ function AffiliationListField({
             },
           }
         : null,
-    [affiliationKey, groupKey, tagKey, showExtraInfo] // eslint-disable-line react-hooks/exhaustive-deps
+    [affiliationKey, groupKey, tagKey, showExtraInfo, userCountURL] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const {data: extraInfoData} = useIndicoAxios(extraInfoConfig ?? '', {manual: !extraInfoConfig});
@@ -239,7 +240,7 @@ function AffiliationListField({
           initialValues={value.affiliations}
           groups={groups ?? null}
           tags={tags ?? null}
-          extraInfoURL={extraInfoURL}
+          extraInfoURL={modalExtraInfoURL}
           renderItemExtra={renderItemExtra}
         />
       )}

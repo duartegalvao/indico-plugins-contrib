@@ -104,13 +104,6 @@ blueprint.add_url_rule(
     RHSearchAffiliationsExtended,
     methods=('GET',),
 )
-blueprint.add_url_rule(
-    f'{_admin_prefix}/affiliation-user-count',
-    'api_affiliation_user_count',
-    RHAffiliationUserCount,
-    methods=('POST',),
-)
-
 _regform_prefix = f'{_admin_prefix}/events/<int:event_id>/regforms/<int:reg_form_id>'
 
 blueprint.add_url_rule(
@@ -135,6 +128,12 @@ blueprint.add_url_rule(
     f'{_regform_prefix}/affiliations/user-count',
     'api_affiliation_user_count_by_ids',
     RHAffiliationUserCountByIds,
+    methods=('POST',),
+)
+blueprint.add_url_rule(
+    f'{_regform_prefix}/affiliation-user-count',
+    'api_affiliation_user_count',
+    RHAffiliationUserCount,
     methods=('POST',),
 )
 blueprint.add_url_rule(

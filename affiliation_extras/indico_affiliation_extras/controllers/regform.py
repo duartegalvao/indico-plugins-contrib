@@ -15,7 +15,6 @@ from webargs.flaskparser import abort
 from werkzeug.exceptions import NotFound
 
 from indico.core.db import db
-from indico.modules.admin import RHAdminBase
 from indico.modules.events.registration.controllers.display import RHRegistrationFormFieldActionBase
 from indico.modules.events.registration.controllers.management import (
     RHManageRegFormBase,
@@ -144,7 +143,7 @@ class RHAffiliationUserCountByIds(RHManageRegFormBase):
         return jsonify({str(aid): counts.get(aid, 0) for aid in affiliation_ids})
 
 
-class RHAffiliationUserCount(RHAdminBase):
+class RHAffiliationUserCount(RHManageRegFormBase):
     """Return the number of unique users for the given affiliation/group/tag selection."""
 
     @use_kwargs({

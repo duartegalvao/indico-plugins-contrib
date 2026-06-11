@@ -6,7 +6,7 @@
 // MIT License see the LICENSE file for more details.
 
 import inviteByAffiliationURL from 'indico-url:plugin_affiliation_extras.api_invite_by_affiliation';
-import userCountByIdsURL from 'indico-url:plugin_affiliation_extras.api_affiliation_user_count_by_ids';
+import affiliationUserCountURL from 'indico-url:plugin_affiliation_extras.api_affiliation_user_count';
 
 import React from 'react';
 
@@ -15,7 +15,7 @@ import {Param, Plural, PluralTranslate, Singular} from 'indico/react/i18n';
 import FinalAffiliationList from '../components/AffiliationListField';
 
 const AffiliationField = ({eventId, regformId}) => {
-  const countURL = userCountByIdsURL({event_id: eventId, reg_form_id: regformId});
+  const countURL = affiliationUserCountURL({event_id: eventId, reg_form_id: regformId});
   const renderItemExtra = item =>
     item.extraInfo !== undefined ? (
       <>
@@ -36,7 +36,7 @@ const AffiliationField = ({eventId, regformId}) => {
     <FinalAffiliationList
       name="affiliations"
       showExtraInfo
-      extraInfoURL={countURL}
+      userCountURL={countURL}
       renderItemExtra={renderItemExtra}
     />
   );
