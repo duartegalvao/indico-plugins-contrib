@@ -107,7 +107,9 @@ export default function AddAffiliationsModal({
   const [values, setValues] = useState<AffiliationWithExtraInfo[]>(initialValues);
 
   const hasSearched = activeFilters !== null;
-  const hasAnyInput = Boolean(searchInput || groupIds.length || tagIds.length || countryCode);
+  // The search runs through the core affiliation search, which requires a query term;
+  // groups, tags and country only refine it.
+  const canSearch = Boolean(searchInput.trim());
   const filtersUnchanged =
     activeFilters !== null &&
     activeFilters.q === searchInput &&
@@ -167,7 +169,7 @@ export default function AddAffiliationsModal({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (hasAnyInput && !filtersUnchanged) {
+      if (canSearch && !filtersUnchanged) {
         applySearch();
       }
     }
@@ -264,14 +266,14 @@ export default function AddAffiliationsModal({
                 content={Translate.string('Search')}
                 onClick={applySearch}
                 loading={hasSearched && isLoading}
-                disabled={!hasAnyInput || filtersUnchanged}
+                disabled={!canSearch || filtersUnchanged}
               />
             </Form>
           </Grid.Column>
 
           {!hasSearched ? (
             <Grid.Column width={12}>
-              <Translate>Fill in the fields and click Search.</Translate>
+              <Translate>Enter a search term and click Search.</Translate>
             </Grid.Column>
           ) : isLoading ? (
             <Grid.Column width={12}>

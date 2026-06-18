@@ -516,6 +516,23 @@ def get_representation_affiliation_filters(context):
     return [Affiliation.id.in_(affiliation_ids)]
 
 
+def get_extended_affiliation_filters(context):
+    """Build affiliation search filters from group/tag/country search params.
+
+    Returns the clauses ANDed into the affiliation search by the
+    `get_affiliation_filters` signal. The context only carries these keys for
+    the extended-search endpoints, so any other search gets no extra filters.
+    """
+    filters = []
+    if country_code := context.get('country_code'):
+        filters.append(Affiliation.country_code == country_code)
+    if tag_ids := context.get('tag_ids'):
+        filters.append(Affiliation.tags.any(AffiliationTag.id.in_(tag_ids)))
+    if group_ids := context.get('group_ids'):
+        filters.append(Affiliation.groups.any(AffiliationGroup.id.in_(group_ids)))
+    return filters
+
+
 def get_contact_list_names() -> list[str]:
     names = (
         db.session
