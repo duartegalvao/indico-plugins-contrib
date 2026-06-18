@@ -21,6 +21,7 @@ def upgrade():
         'role_catalogs',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(), nullable=False),
+        sa.Column('allow_other_role', sa.Boolean(), nullable=False),
         sa.PrimaryKeyConstraint('id'),
         schema='plugin_affiliation_extras',
     )

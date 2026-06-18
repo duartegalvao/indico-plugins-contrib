@@ -31,8 +31,8 @@ def _login(test_client, user):
         sess.set_session_user(user)
 
 
-def _create_role_catalog(db, *, name='Roles'):
-    catalog = RoleCatalog(name=name)
+def _create_role_catalog(db, *, name='Roles', allow_other_role=False):
+    catalog = RoleCatalog(name=name, allow_other_role=allow_other_role)
     db.session.add(catalog)
     db.session.flush()
     return catalog
@@ -258,6 +258,97 @@ def test_representation_field_keeps_unchanged_value_when_list_disabled(db, repre
     assert rv == {}
 
 
+def test_representation_field_accepts_other_role_when_catalog_allows_it(db, representation_field, dummy_reg):
+    role_catalog = _create_role_catalog(db, allow_other_role=True)
+    affiliation_list = _create_affiliation_list(
+        db,
+        representation_field.registration_form.event,
+        name='Delegates',
+        role_catalog=role_catalog,
+    )
+
+    rv = representation_field.field_impl.process_form_data(
+        dummy_reg,
+        {
+            'representation_id': affiliation_list.id,
+            'affiliation': {'id': None, 'text': ''},
+            'role': {'id': None, 'name': 'Beamline coordinator'},
+        },
+    )
+
+    assert rv['data'] == {
+        'representation_id': affiliation_list.id,
+        'representation_name': 'Delegates',
+        'affiliation': {'id': None, 'text': ''},
+        'role': {'id': None, 'name': 'Beamline coordinator'},
+    }
+
+
+def test_representation_field_accepts_required_other_role_when_catalog_allows_it(db, representation_field, dummy_reg):
+    representation_field.data = {'require_role': True}
+    affiliation = Affiliation(name='CERN')
+    db.session.add(affiliation)
+    db.session.flush()
+    role_catalog = _create_role_catalog(db, allow_other_role=True)
+    affiliation_list = _create_affiliation_list(
+        db,
+        representation_field.registration_form.event,
+        name='Delegates',
+        affiliations={affiliation},
+        role_catalog=role_catalog,
+    )
+
+    validator = representation_field.field_impl.get_validators(None)
+    value = {
+        'representation_id': affiliation_list.id,
+        'affiliation': {'id': affiliation.id, 'text': affiliation.name},
+        'role': {'id': None, 'name': 'Beamline coordinator'},
+    }
+
+    validator(value)
+    rv = representation_field.field_impl.process_form_data(dummy_reg, value)
+
+    assert rv['data']['role'] == {'id': None, 'name': 'Beamline coordinator'}
+
+
+def test_representation_field_rejects_other_role_when_catalog_disallows_it(db, representation_field, dummy_reg):
+    role_catalog = _create_role_catalog(db)
+    affiliation_list = _create_affiliation_list(
+        db,
+        representation_field.registration_form.event,
+        role_catalog=role_catalog,
+    )
+
+    with pytest.raises(ValidationError, match='Invalid role'):
+        representation_field.field_impl.process_form_data(
+            dummy_reg,
+            {
+                'representation_id': affiliation_list.id,
+                'affiliation': {'id': None, 'text': ''},
+                'role': {'id': None, 'name': 'Beamline coordinator'},
+            },
+        )
+
+
+def test_representation_field_requires_other_role_title_when_selected(db, representation_field, dummy_reg):
+    role_catalog = _create_role_catalog(db, allow_other_role=True)
+    affiliation_list = _create_affiliation_list(
+        db,
+        representation_field.registration_form.event,
+        role_catalog=role_catalog,
+    )
+
+    with pytest.raises(ValidationError, match='Please enter a role'):
+        representation_field.field_impl.process_form_data(
+            dummy_reg,
+            {
+                'representation_id': affiliation_list.id,
+                'affiliation': {'id': None, 'text': ''},
+                'role': {'id': None, 'name': '   '},
+            },
+        )
+
+
 def test_representation_field_renders_summary_and_reglist_data(representation_field):
     registration_data = RegistrationData(
         field_data=representation_field.current_data,
@@ -354,6 +445,16 @@ def test_representation_field_view_data_includes_roles(db, dummy_regform):
     assert representation_type['roles'] == [
         {'id': role.id, 'name': role.name} for role in sorted(role_catalog.roles, key=lambda role: role.position)
     ]
+
+
+def test_representation_field_view_data_includes_other_role_setting(db, dummy_regform):
+    field = _create_representation_field(db, dummy_regform)
+    role_catalog = _create_role_catalog(db, allow_other_role=True)
+    _create_affiliation_list(db, dummy_regform.event, role_catalog=role_catalog)
+
+    [representation_type] = field.view_data['representationTypes']
+
+    assert representation_type['allowOtherRole'] is True
 
 
 def test_search_keeps_server_side_search_for_non_empty_queries(test_client, db, dummy_regform):

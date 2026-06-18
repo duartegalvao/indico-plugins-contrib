@@ -150,7 +150,7 @@ class AffiliationRoleSchema(mm.SQLAlchemyAutoSchema):
 class RoleCatalogSchema(mm.SQLAlchemyAutoSchema):
     class Meta:
         model = RoleCatalog
-        fields = ('id', 'name', 'roles')
+        fields = ('id', 'name', 'allow_other_role', 'roles')
 
     roles = fields.List(fields.Nested(AffiliationRoleSchema))
 
@@ -231,6 +231,7 @@ class RoleCatalogArgs(mm.Schema):
         unknown = EXCLUDE
 
     name = fields.String(required=True, validate=not_empty)
+    allow_other_role = fields.Boolean(load_default=False)
     roles = fields.List(fields.Nested(RoleCatalogAffiliationRoleArgs), required=True, validate=not_empty)
 
     @validates('roles')

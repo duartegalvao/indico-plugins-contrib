@@ -10,7 +10,7 @@ import searchAffiliationsManagementURL from 'indico-url:plugin_affiliation_extra
 import manageAffiliationsURL from 'indico-url:plugin_affiliation_extras.manage_affiliations';
 
 import React from 'react';
-import {Dropdown, Form, Message} from 'semantic-ui-react';
+import {Dropdown, Form, Input, Message} from 'semantic-ui-react';
 import {useSelector} from 'react-redux';
 
 import {AffiliationField} from 'indico/react/components';
@@ -19,6 +19,8 @@ import {Param, Translate} from 'indico/react/i18n';
 import {getStaticData} from 'indico/modules/events/registration/form/selectors';
 
 import RadioGroup from '../components/RadioGroup';
+import type {RadioGroupOption} from '../components/RadioGroup';
+
 import './RepresentationInput.module.scss';
 
 type RepresentationType = {
@@ -26,6 +28,7 @@ type RepresentationType = {
   name: string;
   affiliations?: Array<{id: number; name: string}>;
   roles?: RoleValue[];
+  allowOtherRole?: boolean;
 };
 type AffiliationValue = {id: number | null; text: string};
 type RoleValue = {id: number | null; name: string};
@@ -43,6 +46,7 @@ type RepresentationValue = {
 
 const EMPTY_AFFILIATION: AffiliationValue = {id: null, text: ''};
 const EMPTY_ROLE: RoleValue = {id: null, name: ''};
+const OTHER_ROLE_ID = 'other';
 const EMPTY_VALUE: RepresentationValue = {
   representationId: null,
   representationName: '',
@@ -100,11 +104,17 @@ function RepresentationInputComponent({
   const usePreloadedAffiliations = preloadedAffiliationOptions.length > 0;
   const roleOptions = selectedRepresentation?.roles || [];
   const roleValue = normalizedValue.role ?? EMPTY_ROLE;
-  const isRoleRequired = requireRole && roleOptions.length > 0;
-  const radioRoleOptions = roleOptions.map(role => ({
+  const allowOtherRole = selectedRepresentation?.allowOtherRole || false;
+  const isRoleRequired = requireRole && (roleOptions.length > 0 || allowOtherRole);
+  const radioRoleOptions: RadioGroupOption[] = roleOptions.map(role => ({
     value: role.id!,
     label: role.name,
   }));
+  if (allowOtherRole) {
+    radioRoleOptions.push({value: OTHER_ROLE_ID, label: Translate.string('Other')});
+  }
+  const selectedRoleValue =
+    roleValue.id !== null ? roleValue.id : roleValue.name && allowOtherRole ? OTHER_ROLE_ID : null;
 
   const handleRepresentationChange = (_: unknown, {value: selectedValue}: {value?: unknown}) => {
     const nextRepresentationId = typeof selectedValue === 'number' ? selectedValue : null;
@@ -127,13 +137,22 @@ function RepresentationInputComponent({
   };
 
   const handleRoleChange = (nextRoleId: string | number | null) => {
-    const nextRole =
-      typeof nextRoleId === 'number'
-        ? (roleOptions.find(role => role.id === nextRoleId) ?? EMPTY_ROLE)
-        : EMPTY_ROLE;
+    let nextRole = EMPTY_ROLE;
+    if (typeof nextRoleId === 'number') {
+      nextRole = roleOptions.find(role => role.id === nextRoleId) ?? EMPTY_ROLE;
+    } else if (nextRoleId === OTHER_ROLE_ID) {
+      nextRole = {id: null, name: roleValue.id === null ? roleValue.name : ''};
+    }
     onChange({
       ...normalizedValue,
       role: nextRole,
+    });
+  };
+
+  const handleOtherRoleChange = (_: unknown, {value: nextTitle}: {value: string}) => {
+    onChange({
+      ...normalizedValue,
+      role: {id: null, name: nextTitle},
     });
   };
 
@@ -181,17 +200,31 @@ function RepresentationInputComponent({
           />
         </Form.Field>
       )}
-      {!!selectedRepresentation && roleOptions.length > 0 && (
-        <RadioGroup
-          id={`${id}-role`}
-          value={roleValue.id}
-          onChange={handleRoleChange}
-          disabled={disabled}
-          required={isRoleRequired}
-          label={Translate.string('Role')}
-          noneLabel={Translate.string('None', 'Choice')}
-          options={radioRoleOptions}
-        />
+      {!!selectedRepresentation && (roleOptions.length > 0 || allowOtherRole) && (
+        <>
+          <RadioGroup
+            id={`${id}-role`}
+            value={selectedRoleValue}
+            onChange={handleRoleChange}
+            disabled={disabled}
+            required={isRoleRequired}
+            label={Translate.string('Role')}
+            noneLabel={Translate.string('None', 'Choice')}
+            options={radioRoleOptions}
+          />
+          {selectedRoleValue === OTHER_ROLE_ID && (
+            <Form.Field required={isRoleRequired}>
+              <Input
+                id={`${id}-role-title`}
+                value={roleValue.name}
+                onChange={handleOtherRoleChange}
+                disabled={disabled}
+                required={isRoleRequired}
+                placeholder={Translate.string('Enter role')}
+              />
+            </Form.Field>
+          )}
+        </>
       )}
     </>
   );

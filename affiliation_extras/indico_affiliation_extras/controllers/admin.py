@@ -200,7 +200,7 @@ class RHRoleCatalogs(RHAdminBase):
     @use_args(RoleCatalogArgs)
     def _process_POST(self, data):
         roles = data.pop('roles')
-        catalog = RoleCatalog(name=data['name'].strip())
+        catalog = RoleCatalog(name=data['name'].strip(), allow_other_role=data['allow_other_role'])
         db.session.add(catalog)
         db.session.flush()
         try:
@@ -235,13 +235,20 @@ class RHRoleCatalog(RHAdminBase):
     @use_args(RoleCatalogArgs)
     def _process_PATCH(self, data):
         roles = data.pop('roles')
-        changes = self.catalog.populate_from_dict({'name': data['name'].strip()})
+        changes = self.catalog.populate_from_dict({
+            'name': data['name'].strip(),
+            'allow_other_role': data['allow_other_role'],
+        })
         try:
             changes.update(populate_role_catalog_roles(self.catalog, roles))
         except UserValueError as exc:
             abort(422, messages={'roles': [str(exc)]})
         if changes:
-            log_fields = {'name': 'Name', 'roles': {'title': 'Roles', 'type': 'list'}}
+            log_fields = {
+                'name': 'Name',
+                'allow_other_role': 'Allow other role',
+                'roles': {'title': 'Roles', 'type': 'list'},
+            }
             log_fields.update({
                 key: {'title': 'Role', 'type': 'list'} for key in changes if key.startswith('roles_item_')
             })
@@ -284,7 +291,7 @@ class RHCloneRoleCatalog(RHAdminBase):
 
     def _process(self):
         name = get_clone_name(self.catalog.name, (catalog.name for catalog in RoleCatalog.query))
-        new_catalog = RoleCatalog(name=name)
+        new_catalog = RoleCatalog(name=name, allow_other_role=self.catalog.allow_other_role)
         db.session.add(new_catalog)
         db.session.flush()
         for role in self.catalog.roles:

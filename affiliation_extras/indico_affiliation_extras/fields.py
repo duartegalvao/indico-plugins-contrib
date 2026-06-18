@@ -71,6 +71,8 @@ class RepresentationField(RegistrationFormFieldBase):
                 data['affiliations'] = AffiliationSchema(many=True, only=_AFFILIATION_PRELOAD_FIELDS).dump(affiliations)
             if item.role_catalog and item.role_catalog.roles:
                 data['roles'] = [{'id': role.id, 'name': role.name} for role in item.role_catalog.roles]
+            if item.role_catalog and item.role_catalog.allow_other_role:
+                data['allow_other_role'] = True
             representation_types.append(data)
         return super().view_data | {'representation_types': representation_types}
 
@@ -99,9 +101,11 @@ class RepresentationField(RegistrationFormFieldBase):
                 self.require_role
                 and affiliation_list
                 and affiliation_list.role_catalog
-                and affiliation_list.role_catalog.roles
+                and (affiliation_list.role_catalog.roles or affiliation_list.role_catalog.allow_other_role)
             ):
-                if role.get('id') is None:
+                custom_role_name = role.get('name', '').strip()
+                has_other_role = affiliation_list.role_catalog.allow_other_role and custom_role_name
+                if role.get('id') is None and not has_other_role:
                     raise ValidationError(_('Please select a role'))
 
         return _validate_representation
@@ -143,6 +147,7 @@ class RepresentationField(RegistrationFormFieldBase):
             affiliation['text'] = matched_affiliation.name
 
         role = value.get('role') or {'id': None, 'name': ''}
+        role_name = role.get('name', '').strip()
         if role['id'] is not None:
             if not affiliation_list or not affiliation_list.role_catalog:
                 raise ValidationError('Invalid role')
@@ -153,11 +158,21 @@ class RepresentationField(RegistrationFormFieldBase):
             if matched_role is None:
                 raise ValidationError('Invalid role')
             value['role'] = {'id': matched_role.id, 'name': matched_role.name}
+        elif role_name:
+            if (
+                not affiliation_list
+                or not affiliation_list.role_catalog
+                or not affiliation_list.role_catalog.allow_other_role
+            ):
+                raise ValidationError('Invalid role')
+            value['role'] = {'id': None, 'name': role_name}
+        elif role.get('name') and not role_name:
+            raise ValidationError('Please enter a role')
         elif (
             self.require_role
             and affiliation_list
             and affiliation_list.role_catalog
-            and affiliation_list.role_catalog.roles
+            and (affiliation_list.role_catalog.roles or affiliation_list.role_catalog.allow_other_role)
         ):
             raise ValidationError('Please select a role')
         else:

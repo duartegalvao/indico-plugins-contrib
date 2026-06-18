@@ -14,7 +14,7 @@ import {HTML5Backend} from 'react-dnd-html5-backend';
 import {Form, Segment} from 'semantic-ui-react';
 
 import {ManagementPageSubTitle} from 'indico/react/components';
-import {FinalInput, FinalSubmitButton} from 'indico/react/forms';
+import {FinalCheckbox, FinalInput, FinalSubmitButton} from 'indico/react/forms';
 import {Translate} from 'indico/react/i18n';
 
 import FinalRoleList from '../components/RoleListField';
@@ -32,6 +32,7 @@ export default function RoleCatalogDetailPane({catalog, isNew, onSubmit}) {
   const isCreate = isNew === true;
   const initialValues = {
     name: catalog?.name || '',
+    allow_other_role: catalog?.allow_other_role || false,
     roles: catalog?.roles?.length
       ? _.sortBy(catalog.roles, 'position').map(role => ({
           id: role.id,
@@ -53,6 +54,7 @@ export default function RoleCatalogDetailPane({catalog, isNew, onSubmit}) {
   const handleSubmit = async formData =>
     onSubmit({
       name: formData.name.trim(),
+      allow_other_role: formData.allow_other_role,
       roles: formData.roles.map(role => ({
         id: role.id,
         code: role.code.trim(),
@@ -94,6 +96,10 @@ export default function RoleCatalogDetailPane({catalog, isNew, onSubmit}) {
                 <h3>
                   <Translate>Roles</Translate>
                 </h3>
+                <FinalCheckbox
+                  name="allow_other_role"
+                  label={Translate.string('Allow participants to specify another role')}
+                />
                 <FinalRoleList name="roles" required />
               </section>
               <div styleName="form-actions">

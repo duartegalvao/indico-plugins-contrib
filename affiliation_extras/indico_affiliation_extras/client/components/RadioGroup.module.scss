@@ -1,0 +1,29 @@
+// This file is part of the third-party Indico plugins.
+// Copyright (C) 2026 CERN
+//
+// The third-party Indico plugins are free software; you can
+// redistribute them and/or modify them under the terms of the;
+// MIT License see the LICENSE file for more details.
+
+:global(table.affiliation-extras-radio-group) {
+  border-collapse: collapse;
+
+  tr {
+    td:first-child {
+      padding-top: 15px;
+      padding-bottom: 15px;
+    }
+
+    td:not(:first-child) {
+      padding-left: 10px;
+    }
+
+    td :global(.ui.label) {
+      white-space: nowrap;
+    }
+  }
+
+  :global(.affiliation-extras-radio-group-row:not(:last-child)) {
+    border-bottom: 1px solid rgba(34, 36, 38, 0.15);
+  }
+}

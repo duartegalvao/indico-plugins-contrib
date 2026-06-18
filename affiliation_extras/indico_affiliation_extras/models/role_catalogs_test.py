@@ -15,9 +15,10 @@ def _login(test_client, user):
         sess.set_session_user(user)
 
 
-def _role_catalog_payload(name='Catalog', roles=None):
+def _role_catalog_payload(name='Catalog', roles=None, allow_other_role=False):
     return {
         'name': name,
+        'allow_other_role': allow_other_role,
         'roles': roles
         or [
             {'id': None, 'code': 'chair', 'name': 'Chair', 'position': 1},
@@ -26,8 +27,8 @@ def _role_catalog_payload(name='Catalog', roles=None):
     }
 
 
-def _create_role_catalog(db, *, name='Catalog'):
-    catalog = RoleCatalog(name=name)
+def _create_role_catalog(db, *, name='Catalog', allow_other_role=False):
+    catalog = RoleCatalog(name=name, allow_other_role=allow_other_role)
     catalog.roles = [
         AffiliationRole(code='chair', name='Chair', position=1),
         AffiliationRole(code='delegate', name='Delegate', position=2),
@@ -66,6 +67,7 @@ def test_role_catalog_api_crud_and_clone(test_client, db, admin_user):
     assert create_resp.status_code == 201
     created = create_resp.json
     assert created['name'] == 'Conference roles'
+    assert created['allow_other_role'] is False
     assert [role['code'] for role in created['roles']] == ['chair', 'delegate']
 
     roles = created['roles']
@@ -73,6 +75,7 @@ def test_role_catalog_api_crud_and_clone(test_client, db, admin_user):
         f'/api/admin/plugins/affiliation_extras/role-catalogs/{created["id"]}',
         json=_role_catalog_payload(
             name='Updated roles',
+            allow_other_role=True,
             roles=[
                 {'id': roles[1]['id'], 'code': 'delegate', 'name': 'Lead delegate', 'position': 1},
                 {'id': None, 'code': 'speaker', 'name': 'Speaker', 'position': 2},
@@ -81,6 +84,7 @@ def test_role_catalog_api_crud_and_clone(test_client, db, admin_user):
     )
     assert edit_resp.status_code == 200
     assert edit_resp.json['name'] == 'Updated roles'
+    assert edit_resp.json['allow_other_role'] is True
     assert [(role['code'], role['name']) for role in edit_resp.json['roles']] == [
         ('delegate', 'Lead delegate'),
         ('speaker', 'Speaker'),
@@ -93,6 +97,7 @@ def test_role_catalog_api_crud_and_clone(test_client, db, admin_user):
     clone_resp = test_client.post(f'/api/admin/plugins/affiliation_extras/role-catalogs/{created["id"]}/clone')
     assert clone_resp.status_code == 200
     assert clone_resp.json['name'] == 'Updated roles (1)'
+    assert clone_resp.json['allow_other_role'] is True
     assert [(role['code'], role['name']) for role in clone_resp.json['roles']] == [
         ('delegate', 'Lead delegate'),
         ('speaker', 'Speaker'),
