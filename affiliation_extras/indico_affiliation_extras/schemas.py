@@ -81,9 +81,10 @@ class AffiliationTagArgs(mm.Schema):
 class AffiliationContactListSchema(mm.SQLAlchemyAutoSchema):
     class Meta:
         model = AffiliationContactList
-        fields = ('id', 'name', 'emails')
+        fields = ('id', 'name', 'emails', 'inactive_emails')
 
     emails = fields.List(LowercaseString())
+    inactive_emails = fields.List(LowercaseString())
 
 
 class AffiliationContactListArgs(mm.Schema):
@@ -92,6 +93,7 @@ class AffiliationContactListArgs(mm.Schema):
 
     name = fields.String(load_default='')
     emails = fields.List(LowercaseString(validate=validate.Email()), required=True, validate=not_empty)
+    inactive_emails = fields.List(LowercaseString(validate=validate.Email()), required=True)
 
 
 class AffiliationExtraAttrs:
@@ -134,6 +136,9 @@ class AffiliationExtraAttrsArgs(mm.Schema):
             emails = lst.get('emails')
             if emails is None:
                 continue
+            inactive_emails = lst.get('inactive_emails', [])
+            if not set(inactive_emails) <= set(emails):
+                raise ValidationError('Inactive emails must belong to the contact list')
             for email in emails:
                 if not validate_email(email):
                     raise ValidationError(_('Invalid email address: {email}').format(email=email))
