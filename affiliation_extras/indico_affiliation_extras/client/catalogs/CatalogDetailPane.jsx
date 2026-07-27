@@ -9,9 +9,9 @@ import _ from 'lodash';
 import PropTypes from 'prop-types';
 import React from 'react';
 import {DndProvider} from 'react-dnd';
-import {Form as FinalForm} from 'react-final-form';
+import {Form as FinalForm, FormSpy} from 'react-final-form';
 import {HTML5Backend} from 'react-dnd-html5-backend';
-import {Form, Segment} from 'semantic-ui-react';
+import {Form, Message, Segment} from 'semantic-ui-react';
 
 import {ManagementPageSubTitle} from 'indico/react/components';
 import {FinalInput, FinalSubmitButton} from 'indico/react/forms';
@@ -91,6 +91,14 @@ export default function CatalogDetailPane({catalog, targetLocator, isNew, onSubm
                 </h3>
                 <FinalCatalogList name="lists" targetLocator={targetLocator} required />
               </section>
+              <FormSpy subscription={{errors: true, dirty: true}}>
+                {({errors, dirty}) =>
+                  dirty && errors.lists ? (
+                    // `negative` (not `error`): Semantic hides `.error.message` inside a Form
+                    <Message negative size="small" content={errors.lists} />
+                  ) : null
+                }
+              </FormSpy>
               <div styleName="form-actions">
                 <FinalSubmitButton label={Translate.string('Save changes')} disabledUntilChange />
               </div>
