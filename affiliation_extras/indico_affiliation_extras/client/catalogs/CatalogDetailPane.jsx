@@ -76,7 +76,7 @@ export default function CatalogDetailPane({catalog, targetLocator, isNew, onSubm
                 </h3>
                 <FinalInput
                   name="name"
-                  required
+                  required="no-validator"
                   placeholder={Translate.string('Enter a name for the catalog')}
                   validate={value =>
                     value && value.trim()
@@ -92,12 +92,12 @@ export default function CatalogDetailPane({catalog, targetLocator, isNew, onSubm
                 <FinalCatalogList name="lists" targetLocator={targetLocator} required />
               </section>
               <FormSpy subscription={{errors: true, dirty: true}}>
-                {({errors, dirty}) =>
-                  dirty && errors.lists ? (
-                    // `negative` (not `error`): Semantic hides `.error.message` inside a Form
-                    <Message negative size="small" content={errors.lists} />
-                  ) : null
-                }
+                {({errors, dirty}) => {
+                  const error = dirty && (errors.name || errors.lists);
+                  return error ? (
+                    <Message negative size="small" content={error} />
+                  ) : null;
+                }}
               </FormSpy>
               <div styleName="form-actions">
                 <FinalSubmitButton label={Translate.string('Save changes')} disabledUntilChange />
