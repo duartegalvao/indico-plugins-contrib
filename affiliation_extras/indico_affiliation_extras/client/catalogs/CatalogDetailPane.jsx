@@ -9,9 +9,9 @@ import _ from 'lodash';
 import PropTypes from 'prop-types';
 import React from 'react';
 import {DndProvider} from 'react-dnd';
-import {Form as FinalForm, FormSpy} from 'react-final-form';
+import {Form as FinalForm} from 'react-final-form';
 import {HTML5Backend} from 'react-dnd-html5-backend';
-import {Form, Message, Segment} from 'semantic-ui-react';
+import {Form, Segment} from 'semantic-ui-react';
 
 import {ManagementPageSubTitle} from 'indico/react/components';
 import {FinalInput, FinalSubmitButton} from 'indico/react/forms';
@@ -69,13 +69,11 @@ export default function CatalogDetailPane({catalog, targetLocator, isNew, onSubm
           subscription={{}}
         >
           {fprops => (
-            <Form onSubmit={fprops.handleSubmit}>
+            <Form onSubmit={fprops.handleSubmit} noValidate>
               <section>
-                <h3>
-                  <Translate>Name</Translate>
-                </h3>
                 <FinalInput
                   name="name"
+                  label={Translate.string('Name')}
                   required="no-validator"
                   placeholder={Translate.string('Enter a name for the catalog')}
                   validate={value =>
@@ -86,21 +84,20 @@ export default function CatalogDetailPane({catalog, targetLocator, isNew, onSubm
                 />
               </section>
               <section>
-                <h3>
-                  <Translate>Lists</Translate>
-                </h3>
-                <FinalCatalogList name="lists" targetLocator={targetLocator} required />
+                <FinalCatalogList
+                  name="lists"
+                  label={Translate.string('Lists')}
+                  targetLocator={targetLocator}
+                  autoId={false}
+                  required
+                />
               </section>
-              <FormSpy subscription={{errors: true, dirty: true}}>
-                {({errors, dirty}) => {
-                  const error = dirty && (errors.name || errors.lists);
-                  return error ? (
-                    <Message negative size="small" content={error} />
-                  ) : null;
-                }}
-              </FormSpy>
               <div styleName="form-actions">
-                <FinalSubmitButton label={Translate.string('Save changes')} disabledUntilChange />
+                <FinalSubmitButton
+                  label={Translate.string('Save changes')}
+                  disabledUntilChange
+                  disabledIfInvalid={false}
+                />
               </div>
             </Form>
           )}
