@@ -12,10 +12,19 @@ import React, {useEffect} from 'react';
 import {useForm} from 'react-final-form';
 import {Icon, Loader, Message} from 'semantic-ui-react';
 
+import {FinalCheckbox} from 'indico/react/forms';
 import {useIndicoAxios} from 'indico/react/hooks';
 import {Param, Plural, PluralTranslate, Singular, Translate} from 'indico/react/i18n';
 
-const FocalPointsField = ({eventId, regformId}) => {
+import ContactListRecipientFields from '../components/ContactListRecipientFields';
+
+const mockContactListOptions = [
+  'Primary contacts',
+  'Administrative contacts',
+  'Technical contacts',
+];
+
+const AffiliationCatalogField = ({eventId, regformId}) => {
   const form = useForm();
   const {data, loading} = useIndicoAxios(
     focalPointInviteMetadataURL({event_id: eventId, reg_form_id: regformId}),
@@ -32,55 +41,82 @@ const FocalPointsField = ({eventId, regformId}) => {
     return <Loader active inline="centered" />;
   }
 
-  if (!data.focalPointCount) {
-    return (
-      <Message warning icon>
-        <Icon name="info circle" />
-        <Message.Content>
-          <Translate as={Message.Header}>No focal points found</Translate>
-          <Translate as="p">
-            No focal points were found for affiliations in this event catalog.
-          </Translate>
-        </Message.Content>
-      </Message>
-    );
-  }
-
   return (
-    <Message info icon>
-      <Icon name="users" />
-      <Message.Content>
-        <PluralTranslate as={Message.Header} count={data.focalPointCount}>
-          <Singular>
-            <Param name="count" value={data.focalPointCount} /> focal point will be invited.
-          </Singular>
-          <Plural>
-            <Param name="count" value={data.focalPointCount} /> focal points will be invited.
-          </Plural>
-        </PluralTranslate>
-        <PluralTranslate as="p" count={data.affiliationCount}>
-          <Singular>
-            This is based on <Param name="count" value={data.affiliationCount} /> catalog
-            affiliation.
-          </Singular>
-          <Plural>
-            This is based on <Param name="count" value={data.affiliationCount} /> catalog
-            affiliations.
-          </Plural>
-        </PluralTranslate>
-        <Translate as="p">Existing invitations and registrations will be skipped.</Translate>
-      </Message.Content>
-    </Message>
+    <>
+      {data.affiliationCount ? (
+        <Message info icon>
+          <Icon name="building outline" />
+          <Message.Content>
+            <PluralTranslate as={Message.Header} count={data.affiliationCount}>
+              <Singular>
+                The event catalog contains <Param name="count" value={data.affiliationCount} />{' '}
+                affiliation.
+              </Singular>
+              <Plural>
+                The event catalog contains <Param name="count" value={data.affiliationCount} />{' '}
+                affiliations.
+              </Plural>
+            </PluralTranslate>
+            <Translate as="p">
+              Select the affiliation contacts that should receive an invitation.
+            </Translate>
+            <Translate as="p">Existing invitations and registrations will be skipped.</Translate>
+          </Message.Content>
+        </Message>
+      ) : (
+        <Message error icon>
+          <Icon name="warning sign" />
+          <Message.Content>
+            <Translate as={Message.Header}>No affiliations found</Translate>
+            <Translate as="p">No affiliations were found in this event catalog.</Translate>
+          </Message.Content>
+        </Message>
+      )}
+      <FinalCheckbox
+        name="include_focal_points"
+        label={Translate.string('Invite focal points')}
+        description={
+          data.focalPointCount
+            ? PluralTranslate.string(
+                '{count} focal point from the catalog will be invited.',
+                '{count} focal points from the catalog will be invited.',
+                data.focalPointCount,
+                {count: data.focalPointCount}
+              )
+            : Translate.string('No focal points were found in the event catalog.')
+        }
+        disabled={!data.focalPointCount}
+      />
+      {mockContactListOptions.length > 0 ? (
+        <ContactListRecipientFields
+          contactListOptions={data.affiliationCount ? mockContactListOptions : []}
+          allowNoContactLists
+        />
+      ) : (
+        <FinalCheckbox
+          name="include_unnamed_lists"
+          label={Translate.string('Invite contacts')}
+          description={Translate.string('Invite contacts from unnamed contact lists.')}
+          disabled={!data.affiliationCount}
+        />
+      )}
+    </>
   );
 };
 
 const focalPointInvitations = {
   key: 'focal_points',
-  buttonLabel: Translate.string('Focal points'),
-  Component: FocalPointsField,
+  buttonLabel: Translate.string('Affiliation Catalog'),
+  Component: AffiliationCatalogField,
   extraFields: ['focal_points'],
-  initialValues: {focal_points: {focalPointCount: 0, affiliationCount: 0}},
-  getCount: ({focal_points: focalPoints}) => focalPoints?.focalPointCount ?? 0,
+  initialValues: {
+    focal_points: {focalPointCount: 0, affiliationCount: 0},
+    include_focal_points: true,
+    contact_lists: [],
+    include_unnamed_lists: true,
+  },
+  getCount: ({focal_points: focalPoints, include_focal_points: includeFocalPoints}) =>
+    includeFocalPoints ? (focalPoints?.focalPointCount ?? 0) : 0,
   getSubmitURL: ({eventId, regformId}) =>
     inviteFocalPointsURL({event_id: eventId, reg_form_id: regformId}),
 };
