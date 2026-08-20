@@ -12,26 +12,37 @@ import {Translate} from 'indico/react/i18n';
 
 import {ExtendedAffiliation} from '../types';
 
+import {hasAffiliationEmails} from './contactEmails';
 import EmailAffiliations from './EmailAffiliations';
+import FocalPoints from './FocalPoints';
 
 export default function AffiliationRowActions({affiliation}: {affiliation: ExtendedAffiliation}) {
   const [modalOpen, setModalOpen] = useState<string | null>(null);
   const openModal = (modal: string) => () => setModalOpen(modal);
   const closeModal = () => setModalOpen(null);
+  const hasEmailRecipients = hasAffiliationEmails(affiliation);
 
   const modal = {
     email: <EmailAffiliations affiliations={[affiliation]} onClose={closeModal} />,
+    focalPoints: <FocalPoints affiliation={affiliation} onClose={closeModal} />,
   }[modalOpen];
 
   return (
     <>
       <Icon
         name="mail"
-        link={affiliation.contact_lists.length > 0}
+        link={hasEmailRecipients}
         title={Translate.string('Email representatives')}
         color="grey"
-        onClick={openModal('email')}
-        disabled={affiliation.contact_lists.length === 0}
+        onClick={hasEmailRecipients ? openModal('email') : undefined}
+        disabled={!hasEmailRecipients}
+      />
+      <Icon
+        name="user circle"
+        link
+        title={Translate.string('Manage focal points')}
+        color="grey"
+        onClick={openModal('focalPoints')}
       />
       {modal}
     </>
