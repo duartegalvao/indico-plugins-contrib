@@ -16,6 +16,7 @@ export default function ContactListRecipientFields({
   contactListOptions,
   allowNoContactLists,
   hasUnnamedContactLists,
+  disabled,
 }) {
   const form = useForm();
   return (
@@ -29,7 +30,7 @@ export default function ContactListRecipientFields({
             : Translate.string('Send to all contact lists')
         }
         options={contactListOptions.map(name => ({value: name, text: name}))}
-        disabled={!contactListOptions.length}
+        disabled={disabled || !contactListOptions.length}
         onChange={value => {
           if (!allowNoContactLists && value.length === 0) {
             form.change('include_unnamed_lists', true);
@@ -45,6 +46,7 @@ export default function ContactListRecipientFields({
             name="include_unnamed_lists"
             label={Translate.string('Send to contacts in unnamed lists')}
             disabled={
+              disabled ||
               !hasUnnamedContactLists ||
               !contactListOptions.length ||
               (!allowNoContactLists && !contactLists.length)
@@ -61,9 +63,11 @@ ContactListRecipientFields.propTypes = {
   contactListOptions: PropTypes.arrayOf(PropTypes.string).isRequired,
   allowNoContactLists: PropTypes.bool,
   hasUnnamedContactLists: PropTypes.bool,
+  disabled: PropTypes.bool,
 };
 
 ContactListRecipientFields.defaultProps = {
   allowNoContactLists: false,
   hasUnnamedContactLists: true,
+  disabled: false,
 };

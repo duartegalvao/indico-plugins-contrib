@@ -12,7 +12,7 @@ import inviteAffiliationCatalogURL from 'indico-url:plugin_affiliation_extras.ap
 import PropTypes from 'prop-types';
 import React, {useEffect, useMemo} from 'react';
 import {useForm, useFormState} from 'react-final-form';
-import {Icon, Loader, Message} from 'semantic-ui-react';
+import {Icon, Loader, Message, Segment} from 'semantic-ui-react';
 
 import {FinalCheckbox} from 'indico/react/forms';
 import {useIndicoAxios} from 'indico/react/hooks';
@@ -25,6 +25,7 @@ const AffiliationCatalogFields = ({eventId, regformId}) => {
   const {
     values: {
       include_focal_points: includeFocalPoints = false,
+      include_contacts: includeContacts = false,
       contact_lists: contactLists = [],
       include_unnamed_lists: includeUnnamedLists = false,
     },
@@ -42,11 +43,12 @@ const AffiliationCatalogFields = ({eventId, regformId}) => {
       method: 'POST',
       data: {
         include_focal_points: includeFocalPoints,
+        include_contacts: includeContacts,
         contact_lists: contactLists,
         include_unnamed_lists: includeUnnamedLists,
       },
     }),
-    [contactLists, eventId, includeFocalPoints, includeUnnamedLists, regformId]
+    [contactLists, eventId, includeContacts, includeFocalPoints, includeUnnamedLists, regformId]
   );
   const {
     data: recipientCountData,
@@ -54,6 +56,7 @@ const AffiliationCatalogFields = ({eventId, regformId}) => {
     loading: recipientCountLoading,
   } = useIndicoAxios(recipientCountConfig, {camelize: true});
   const hasUnnamedContactLists = data?.hasUnnamedContactLists;
+  const hasContactLists = !!(data?.contactListOptions.length || hasUnnamedContactLists);
 
   useEffect(() => {
     form.change('affiliation_catalog_recipient_count', 0);
@@ -70,6 +73,12 @@ const AffiliationCatalogFields = ({eventId, regformId}) => {
       form.change('include_unnamed_lists', false);
     }
   }, [form, hasUnnamedContactLists, includeUnnamedLists]);
+
+  useEffect(() => {
+    if (data && !hasContactLists && includeContacts) {
+      form.change('include_contacts', false);
+    }
+  }, [data, form, hasContactLists, includeContacts]);
 
   if (loading || !data) {
     return <Loader active inline="centered" />;
@@ -120,20 +129,28 @@ const AffiliationCatalogFields = ({eventId, regformId}) => {
             : Translate.string('No focal points were found in the event catalog.')
         }
         disabled={!data.focalPointCount}
+        showAsToggle
       />
-      {data.contactListOptions.length > 0 ? (
-        <ContactListRecipientFields
-          contactListOptions={data.affiliationCount ? data.contactListOptions : []}
-          hasUnnamedContactLists={data.hasUnnamedContactLists}
-          allowNoContactLists
-        />
-      ) : (
-        <FinalCheckbox
-          name="include_unnamed_lists"
-          label={Translate.string('Invite contacts')}
-          description={Translate.string('Invite contacts from unnamed contact lists.')}
-          disabled={!data.affiliationCount || !data.hasUnnamedContactLists}
-        />
+      <FinalCheckbox
+        name="include_contacts"
+        label={Translate.string('Invite contacts')}
+        description={
+          hasContactLists
+            ? Translate.string('Invite contacts from selected contact lists.')
+            : Translate.string('No contact lists were found in the event catalog.')
+        }
+        disabled={!hasContactLists}
+        showAsToggle
+      />
+      {data.contactListOptions.length > 0 && (
+        <Segment>
+          <ContactListRecipientFields
+            contactListOptions={data.affiliationCount ? data.contactListOptions : []}
+            hasUnnamedContactLists={data.hasUnnamedContactLists}
+            disabled={!includeContacts}
+            allowNoContactLists
+          />
+        </Segment>
       )}
     </>
   );
@@ -148,10 +165,16 @@ const affiliationCatalogInvitations = {
   key: 'affiliation_catalog',
   buttonLabel: Translate.string('Affiliation Catalog'),
   Component: AffiliationCatalogFields,
-  extraFields: ['include_focal_points', 'contact_lists', 'include_unnamed_lists'],
+  extraFields: [
+    'include_focal_points',
+    'include_contacts',
+    'contact_lists',
+    'include_unnamed_lists',
+  ],
   initialValues: {
     affiliation_catalog_recipient_count: 0,
     include_focal_points: true,
+    include_contacts: true,
     contact_lists: [],
     include_unnamed_lists: true,
   },

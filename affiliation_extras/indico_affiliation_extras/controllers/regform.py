@@ -182,6 +182,7 @@ class InviteByAffiliationArgs(InviteUsersArgs):
 
 class AffiliationCatalogRecipientSelectionArgs(mm.Schema):
     include_focal_points = fields.Boolean(required=True)
+    include_contacts = fields.Boolean(required=True)
     contact_lists = fields.List(fields.String(validate=not_empty), required=True)
     include_unnamed_lists = fields.Boolean(required=True)
 
@@ -189,7 +190,8 @@ class AffiliationCatalogRecipientSelectionArgs(mm.Schema):
 class InviteAffiliationCatalogArgs(InviteUsersArgs, AffiliationCatalogRecipientSelectionArgs):
     @validates_schema
     def _validate_recipient_source(self, data, **kwargs):
-        if not data['include_focal_points'] and not data['contact_lists'] and not data['include_unnamed_lists']:
+        include_contacts = data['include_contacts'] and (data['contact_lists'] or data['include_unnamed_lists'])
+        if not data['include_focal_points'] and not include_contacts:
             raise ValidationError('At least one recipient source is required')
 
 
@@ -202,10 +204,14 @@ class InvitationRecipient:
 
 
 def _get_affiliation_catalog_invitation_recipients(
-    event, *, include_focal_points, contact_lists, include_unnamed_lists
+    event, *, include_focal_points, include_contacts, contact_lists, include_unnamed_lists
 ):
     affiliation_ids = get_event_catalog_affiliation_ids(event)
     recipients = {}
+
+    if not include_contacts:
+        contact_lists = []
+        include_unnamed_lists = False
 
     if include_focal_points:
         for user in get_event_catalog_focal_points(event, affiliation_ids):
@@ -261,14 +267,10 @@ def _get_affiliation_catalog_invitation_recipients(
 
     contact_emails = set(recipients) - focal_point_emails
     if contact_emails:
-        user_emails = (
-            UserEmail.query
-            .join(User, User.id == UserEmail.user_id)
-            .filter(
-                UserEmail.email.in_(contact_emails),
-                ~UserEmail.is_user_deleted,
-                ~User.is_deleted,
-            )
+        user_emails = UserEmail.query.join(User, User.id == UserEmail.user_id).filter(
+            UserEmail.email.in_(contact_emails),
+            ~UserEmail.is_user_deleted,
+            ~User.is_deleted,
         )
         for user_email in user_emails:
             user = user_email.user
@@ -438,10 +440,11 @@ class RHAffiliationCatalogInviteRecipientCount(RHManageRegFormBase):
     """Return the number of unique recipients for an affiliation-catalog selection."""
 
     @use_kwargs(AffiliationCatalogRecipientSelectionArgs)
-    def _process(self, include_focal_points, contact_lists, include_unnamed_lists):
+    def _process(self, include_focal_points, include_contacts, contact_lists, include_unnamed_lists):
         recipients = _get_affiliation_catalog_invitation_recipients(
             self.event,
             include_focal_points=include_focal_points,
+            include_contacts=include_contacts,
             contact_lists=contact_lists,
             include_unnamed_lists=include_unnamed_lists,
         )
@@ -463,12 +466,14 @@ class RHInviteAffiliationCatalog(RHInviteUsersBase):
         skip_access_check,
         lock_email,
         include_focal_points,
+        include_contacts,
         contact_lists,
         include_unnamed_lists,
     ):
         recipients = _get_affiliation_catalog_invitation_recipients(
             self.event,
             include_focal_points=include_focal_points,
+            include_contacts=include_contacts,
             contact_lists=contact_lists,
             include_unnamed_lists=include_unnamed_lists,
         )
@@ -485,8 +490,9 @@ class RHInviteAffiliationCatalog(RHInviteUsersBase):
             lock_email,
             audit_log_data={
                 'Invitation mode': 'Affiliation catalog',
-                'Contact lists': sorted(contact_lists),
-                'Include unnamed contact lists': include_unnamed_lists,
+                'Include contacts': include_contacts,
+                'Contact lists': sorted(contact_lists) if include_contacts else [],
+                'Include unnamed contact lists': include_contacts and include_unnamed_lists,
                 'Include focal points': include_focal_points,
             },
         )

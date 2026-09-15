@@ -29,8 +29,7 @@ def _login(test_client, user):
 
 def _url(regform):
     return (
-        f'/admin/plugins/affiliation_extras/events/{regform.event.id}/regforms/{regform.id}'
-        '/affiliation-catalog/invite'
+        f'/admin/plugins/affiliation_extras/events/{regform.event.id}/regforms/{regform.id}/affiliation-catalog/invite'
     )
 
 
@@ -80,6 +79,7 @@ def test_invite_affiliation_catalog_focal_points(
     outside = create_user(2, first_name='Bob', last_name='Other', email='bob@example.test')
     set_focal_points(managed, {focal})
     set_focal_points(other, {outside})
+    db.session.add(AffiliationContactList(affiliation=managed, name='Operations', emails=['contact@example.test']))
     db.session.flush()
 
     resp = test_client.post(
@@ -94,7 +94,8 @@ def test_invite_affiliation_catalog_focal_points(
             'skip_access_check': False,
             'lock_email': False,
             'include_focal_points': True,
-            'contact_lists': [],
+            'include_contacts': False,
+            'contact_lists': ['Operations'],
             'include_unnamed_lists': False,
         },
     )
@@ -103,6 +104,10 @@ def test_invite_affiliation_catalog_focal_points(
     assert resp.json['sent'] == 1
     assert resp.json['skipped'] == 0
     assert [inv.email for inv in dummy_regform.invitations] == ['alice@example.test']
+    log_entry = dummy_regform.event.log_entries.filter_by(module='Registration').one()
+    assert log_entry.data['Include contacts'] is False
+    assert log_entry.data['Contact lists'] == []
+    assert log_entry.data['Include unnamed contact lists'] is False
 
 
 @pytest.mark.usefixtures('no_csrf_check')
@@ -136,6 +141,7 @@ def test_invite_affiliation_catalog_contacts(
             'subject': 'Invitation',
             'body': 'Please register',
             'include_focal_points': False,
+            'include_contacts': True,
             'contact_lists': ['Operations'],
             'include_unnamed_lists': True,
         },
@@ -155,6 +161,7 @@ def test_invite_affiliation_catalog_contacts(
     assert log_entry.summary == 'Invitations sent'
     assert log_entry.user == dummy_user
     assert log_entry.data['Invitation mode'] == 'Affiliation catalog'
+    assert log_entry.data['Include contacts'] is True
     assert log_entry.data['Contact lists'] == ['Operations']
     assert log_entry.data['Include unnamed contact lists'] is True
     assert log_entry.data['Include focal points'] is False
@@ -179,9 +186,7 @@ def test_invite_affiliation_catalog_uses_matching_user_data(
     _add_event_catalog(db, dummy_regform.event, {managed})
     contact_user = create_user(1, first_name='Alice', last_name='Contact', email='contact@example.test')
     contact_user.affiliation = 'WIPO'
-    db.session.add(
-        AffiliationContactList(affiliation=managed, name='Operations', emails=['contact@example.test'])
-    )
+    db.session.add(AffiliationContactList(affiliation=managed, name='Operations', emails=['contact@example.test']))
     db.session.flush()
 
     resp = test_client.post(
@@ -191,13 +196,14 @@ def test_invite_affiliation_catalog_uses_matching_user_data(
             'subject': 'Invitation',
             'body': 'Please register',
             'include_focal_points': False,
+            'include_contacts': True,
             'contact_lists': ['Operations'],
             'include_unnamed_lists': False,
         },
     )
 
     assert resp.status_code == 200
-    invitation, = dummy_regform.invitations
+    (invitation,) = dummy_regform.invitations
     assert (invitation.first_name, invitation.last_name, invitation.affiliation) == ('Alice', 'Contact', 'WIPO')
 
 
@@ -231,13 +237,14 @@ def test_invite_affiliation_catalog_omits_ambiguous_affiliation(
             'subject': 'Invitation',
             'body': 'Please register',
             'include_focal_points': False,
+            'include_contacts': True,
             'contact_lists': ['Operations'],
             'include_unnamed_lists': False,
         },
     )
 
     assert resp.status_code == 200
-    invitation, = dummy_regform.invitations
+    (invitation,) = dummy_regform.invitations
     assert invitation.affiliation == ''
 
 
@@ -278,6 +285,7 @@ def test_invite_affiliation_catalog_returns_invitations_sorted_by_name(
             'skip_access_check': False,
             'lock_email': False,
             'include_focal_points': True,
+            'include_contacts': False,
             'contact_lists': [],
             'include_unnamed_lists': False,
         },
@@ -402,6 +410,7 @@ def test_affiliation_catalog_invite_recipient_count_deduplicates_sources(
         _recipient_count_url(dummy_regform),
         json={
             'include_focal_points': True,
+            'include_contacts': True,
             'contact_lists': ['Operations'],
             'include_unnamed_lists': False,
         },
@@ -425,15 +434,14 @@ def test_affiliation_catalog_invite_rejects_unknown_contact_list(
     db.session.add(managed)
     db.session.flush()
     _add_event_catalog(db, dummy_regform.event, {managed})
-    db.session.add(
-        AffiliationContactList(affiliation=managed, name='Operations', emails=['ops@example.test'])
-    )
+    db.session.add(AffiliationContactList(affiliation=managed, name='Operations', emails=['ops@example.test']))
     db.session.flush()
 
     resp = test_client.post(
         _recipient_count_url(dummy_regform),
         json={
             'include_focal_points': False,
+            'include_contacts': True,
             'contact_lists': ['Unknown'],
             'include_unnamed_lists': False,
         },
@@ -456,6 +464,7 @@ def test_affiliation_catalog_invite_recipient_count_allows_no_source(
         _recipient_count_url(dummy_regform),
         json={
             'include_focal_points': False,
+            'include_contacts': False,
             'contact_lists': [],
             'include_unnamed_lists': False,
         },
@@ -466,10 +475,43 @@ def test_affiliation_catalog_invite_recipient_count_allows_no_source(
 
 
 @pytest.mark.usefixtures('no_csrf_check')
+def test_affiliation_catalog_invite_recipient_count_ignores_disabled_contacts(
+    test_client,
+    db,
+    dummy_regform,
+    dummy_user,
+):
+    dummy_regform.event.update_principal(dummy_user, full_access=True)
+    _login(test_client, dummy_user)
+
+    managed = Affiliation(name='CERN')
+    db.session.add(managed)
+    db.session.flush()
+    _add_event_catalog(db, dummy_regform.event, {managed})
+    db.session.add(AffiliationContactList(affiliation=managed, name='Operations', emails=['ops@example.test']))
+    db.session.flush()
+
+    resp = test_client.post(
+        _recipient_count_url(dummy_regform),
+        json={
+            'include_focal_points': False,
+            'include_contacts': False,
+            'contact_lists': ['Unknown'],
+            'include_unnamed_lists': True,
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.json == {'recipient_count': 0}
+
+
+@pytest.mark.usefixtures('no_csrf_check')
+@pytest.mark.parametrize('include_contacts', (False, True))
 def test_invite_affiliation_catalog_rejects_no_recipient_source(
     test_client,
     dummy_regform,
     dummy_user,
+    include_contacts,
 ):
     dummy_regform.event.update_principal(dummy_user, full_access=True)
     _login(test_client, dummy_user)
@@ -481,6 +523,7 @@ def test_invite_affiliation_catalog_rejects_no_recipient_source(
             'subject': 'Invitation',
             'body': 'Please register',
             'include_focal_points': False,
+            'include_contacts': include_contacts,
             'contact_lists': [],
             'include_unnamed_lists': False,
         },
