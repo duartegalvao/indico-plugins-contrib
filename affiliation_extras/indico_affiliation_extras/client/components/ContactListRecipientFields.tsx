@@ -5,20 +5,29 @@
 // redistribute them and/or modify them under the terms of the;
 // MIT License see the LICENSE file for more details.
 
-import PropTypes from 'prop-types';
 import React from 'react';
 import {Field, useForm} from 'react-final-form';
 
 import {FinalCheckbox, FinalDropdown} from 'indico/react/forms';
 import {Translate} from 'indico/react/i18n';
 
+interface ContactListRecipientFormValues {
+  contact_lists: string[];
+  include_unnamed_lists: boolean;
+}
+
 export default function ContactListRecipientFields({
   contactListOptions,
-  allowNoContactLists,
-  hasUnnamedContactLists,
-  disabled,
+  allowNoContactLists = false,
+  hasUnnamedContactLists = true,
+  disabled = false,
+}: {
+  contactListOptions: string[];
+  allowNoContactLists?: boolean;
+  hasUnnamedContactLists?: boolean;
+  disabled?: boolean;
 }) {
-  const form = useForm();
+  const form = useForm<ContactListRecipientFormValues>();
   return (
     <>
       <FinalDropdown
@@ -31,7 +40,7 @@ export default function ContactListRecipientFields({
         }
         options={contactListOptions.map(name => ({value: name, text: name}))}
         disabled={disabled || !contactListOptions.length}
-        onChange={value => {
+        onChange={(value: string[]) => {
           if (!allowNoContactLists && value.length === 0) {
             form.change('include_unnamed_lists', true);
           }
@@ -40,11 +49,12 @@ export default function ContactListRecipientFields({
         multiple
         fluid
       />
-      <Field name="contact_lists" subscription={{value: true}}>
+      <Field<string[]> name="contact_lists" subscription={{value: true}}>
         {({input: {value: contactLists}}) => (
           <FinalCheckbox
             name="include_unnamed_lists"
             label={Translate.string('Send to contacts in unnamed lists')}
+            value={undefined}
             disabled={
               disabled ||
               !hasUnnamedContactLists ||
@@ -58,16 +68,3 @@ export default function ContactListRecipientFields({
     </>
   );
 }
-
-ContactListRecipientFields.propTypes = {
-  contactListOptions: PropTypes.arrayOf(PropTypes.string).isRequired,
-  allowNoContactLists: PropTypes.bool,
-  hasUnnamedContactLists: PropTypes.bool,
-  disabled: PropTypes.bool,
-};
-
-ContactListRecipientFields.defaultProps = {
-  allowNoContactLists: false,
-  hasUnnamedContactLists: true,
-  disabled: false,
-};

@@ -9,7 +9,6 @@ import affiliationCatalogInviteMetadataURL from 'indico-url:plugin_affiliation_e
 import affiliationCatalogInviteRecipientCountURL from 'indico-url:plugin_affiliation_extras.api_affiliation_catalog_invite_recipient_count';
 import inviteAffiliationCatalogURL from 'indico-url:plugin_affiliation_extras.api_invite_affiliation_catalog';
 
-import PropTypes from 'prop-types';
 import React, {useEffect, useMemo} from 'react';
 import {useForm, useFormState} from 'react-final-form';
 import {Icon, Loader, Message, Segment} from 'semantic-ui-react';
@@ -20,8 +19,47 @@ import {Param, Plural, PluralTranslate, Singular, Translate} from 'indico/react/
 
 import ContactListRecipientFields from '../components/ContactListRecipientFields';
 
-const AffiliationCatalogFields = ({eventId, regformId}) => {
-  const form = useForm();
+interface AffiliationCatalogFieldsProps {
+  eventId: number;
+  regformId: number;
+}
+
+interface AffiliationCatalogInvitationValues {
+  affiliation_catalog_recipient_count: number;
+  include_focal_points: boolean;
+  include_contacts: boolean;
+  contact_lists: string[];
+  include_unnamed_lists: boolean;
+}
+
+interface AffiliationCatalogMetadata {
+  affiliationCount: number;
+  focalPointCount: number;
+  contactListOptions: string[];
+  hasUnnamedContactLists: boolean;
+}
+
+interface RecipientCountData {
+  recipientCount: number;
+}
+
+interface InvitationModeContext {
+  eventId: number;
+  regformId: number;
+}
+
+interface AffiliationCatalogInvitationMode {
+  key: string;
+  buttonLabel: string;
+  Component: React.ComponentType<AffiliationCatalogFieldsProps>;
+  extraFields: (keyof AffiliationCatalogInvitationValues)[];
+  initialValues: AffiliationCatalogInvitationValues;
+  getCount: (values: AffiliationCatalogInvitationValues) => number;
+  getSubmitURL: (context: InvitationModeContext) => string;
+}
+
+const AffiliationCatalogFields = ({eventId, regformId}: AffiliationCatalogFieldsProps) => {
+  const form = useForm<AffiliationCatalogInvitationValues>();
   const {
     values: {
       include_focal_points: includeFocalPoints = false,
@@ -29,11 +67,12 @@ const AffiliationCatalogFields = ({eventId, regformId}) => {
       contact_lists: contactLists = [],
       include_unnamed_lists: includeUnnamedLists = false,
     },
-  } = useFormState({subscription: {values: true}});
-  const {data, loading} = useIndicoAxios(
+  } = useFormState<AffiliationCatalogInvitationValues>({subscription: {values: true}});
+  const {data: metadataData, loading} = useIndicoAxios(
     affiliationCatalogInviteMetadataURL({event_id: eventId, reg_form_id: regformId}),
     {camelize: true}
   );
+  const data = metadataData as AffiliationCatalogMetadata | null;
   const recipientCountConfig = useMemo(
     () => ({
       url: affiliationCatalogInviteRecipientCountURL({
@@ -51,12 +90,16 @@ const AffiliationCatalogFields = ({eventId, regformId}) => {
     [contactLists, eventId, includeContacts, includeFocalPoints, includeUnnamedLists, regformId]
   );
   const {
-    data: recipientCountData,
+    data: recipientCountResponse,
     error: recipientCountError,
     loading: recipientCountLoading,
   } = useIndicoAxios(recipientCountConfig, {camelize: true});
-  const hasUnnamedContactLists = data?.hasUnnamedContactLists;
-  const hasContactLists = !!(data?.contactListOptions.length || hasUnnamedContactLists);
+  const recipientCountData = recipientCountResponse as RecipientCountData | null;
+  const hasUnnamedContactLists = data && data.hasUnnamedContactLists;
+  const hasContactLists = !!(
+    data &&
+    (data.contactListOptions.length || data.hasUnnamedContactLists)
+  );
 
   useEffect(() => {
     form.change('affiliation_catalog_recipient_count', 0);
@@ -118,6 +161,7 @@ const AffiliationCatalogFields = ({eventId, regformId}) => {
       <FinalCheckbox
         name="include_focal_points"
         label={Translate.string('Invite focal points')}
+        value={undefined}
         description={
           data.focalPointCount
             ? PluralTranslate.string(
@@ -134,6 +178,7 @@ const AffiliationCatalogFields = ({eventId, regformId}) => {
       <FinalCheckbox
         name="include_contacts"
         label={Translate.string('Invite contacts')}
+        value={undefined}
         description={
           hasContactLists
             ? Translate.string('Invite contacts from selected contact lists.')
@@ -156,12 +201,7 @@ const AffiliationCatalogFields = ({eventId, regformId}) => {
   );
 };
 
-AffiliationCatalogFields.propTypes = {
-  eventId: PropTypes.number.isRequired,
-  regformId: PropTypes.number.isRequired,
-};
-
-const affiliationCatalogInvitations = {
+const affiliationCatalogInvitations: AffiliationCatalogInvitationMode = {
   key: 'affiliation_catalog',
   buttonLabel: Translate.string('Affiliation Catalog'),
   Component: AffiliationCatalogFields,
