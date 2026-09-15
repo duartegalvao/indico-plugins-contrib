@@ -5,11 +5,13 @@
 // redistribute them and/or modify them under the terms of the;
 // MIT License see the LICENSE file for more details.
 
-import focalPointInviteMetadataURL from 'indico-url:plugin_affiliation_extras.api_focal_point_invite_metadata';
-import inviteFocalPointsURL from 'indico-url:plugin_affiliation_extras.api_invite_focal_points';
+import affiliationCatalogInviteMetadataURL from 'indico-url:plugin_affiliation_extras.api_affiliation_catalog_invite_metadata';
+import affiliationCatalogInviteRecipientCountURL from 'indico-url:plugin_affiliation_extras.api_affiliation_catalog_invite_recipient_count';
+import inviteAffiliationCatalogURL from 'indico-url:plugin_affiliation_extras.api_invite_affiliation_catalog';
 
-import React, {useEffect} from 'react';
-import {useForm} from 'react-final-form';
+import PropTypes from 'prop-types';
+import React, {useEffect, useMemo} from 'react';
+import {useForm, useFormState} from 'react-final-form';
 import {Icon, Loader, Message} from 'semantic-ui-react';
 
 import {FinalCheckbox} from 'indico/react/forms';
@@ -18,24 +20,56 @@ import {Param, Plural, PluralTranslate, Singular, Translate} from 'indico/react/
 
 import ContactListRecipientFields from '../components/ContactListRecipientFields';
 
-const mockContactListOptions = [
-  'Primary contacts',
-  'Administrative contacts',
-  'Technical contacts',
-];
-
-const AffiliationCatalogField = ({eventId, regformId}) => {
+const AffiliationCatalogFields = ({eventId, regformId}) => {
   const form = useForm();
+  const {
+    values: {
+      include_focal_points: includeFocalPoints = false,
+      contact_lists: contactLists = [],
+      include_unnamed_lists: includeUnnamedLists = false,
+    },
+  } = useFormState({subscription: {values: true}});
   const {data, loading} = useIndicoAxios(
-    focalPointInviteMetadataURL({event_id: eventId, reg_form_id: regformId}),
+    affiliationCatalogInviteMetadataURL({event_id: eventId, reg_form_id: regformId}),
     {camelize: true}
   );
+  const recipientCountConfig = useMemo(
+    () => ({
+      url: affiliationCatalogInviteRecipientCountURL({
+        event_id: eventId,
+        reg_form_id: regformId,
+      }),
+      method: 'POST',
+      data: {
+        include_focal_points: includeFocalPoints,
+        contact_lists: contactLists,
+        include_unnamed_lists: includeUnnamedLists,
+      },
+    }),
+    [contactLists, eventId, includeFocalPoints, includeUnnamedLists, regformId]
+  );
+  const {
+    data: recipientCountData,
+    error: recipientCountError,
+    loading: recipientCountLoading,
+  } = useIndicoAxios(recipientCountConfig, {camelize: true});
+  const hasUnnamedContactLists = data?.hasUnnamedContactLists;
 
   useEffect(() => {
-    if (data) {
-      form.change('focal_points', data);
+    form.change('affiliation_catalog_recipient_count', 0);
+  }, [form, recipientCountConfig]);
+
+  useEffect(() => {
+    if (!recipientCountLoading && !recipientCountError && recipientCountData) {
+      form.change('affiliation_catalog_recipient_count', recipientCountData.recipientCount);
     }
-  }, [data, form]);
+  }, [form, recipientCountData, recipientCountError, recipientCountLoading]);
+
+  useEffect(() => {
+    if (hasUnnamedContactLists === false && includeUnnamedLists) {
+      form.change('include_unnamed_lists', false);
+    }
+  }, [form, hasUnnamedContactLists, includeUnnamedLists]);
 
   if (loading || !data) {
     return <Loader active inline="centered" />;
@@ -87,9 +121,10 @@ const AffiliationCatalogField = ({eventId, regformId}) => {
         }
         disabled={!data.focalPointCount}
       />
-      {mockContactListOptions.length > 0 ? (
+      {data.contactListOptions.length > 0 ? (
         <ContactListRecipientFields
-          contactListOptions={data.affiliationCount ? mockContactListOptions : []}
+          contactListOptions={data.affiliationCount ? data.contactListOptions : []}
+          hasUnnamedContactLists={data.hasUnnamedContactLists}
           allowNoContactLists
         />
       ) : (
@@ -97,28 +132,32 @@ const AffiliationCatalogField = ({eventId, regformId}) => {
           name="include_unnamed_lists"
           label={Translate.string('Invite contacts')}
           description={Translate.string('Invite contacts from unnamed contact lists.')}
-          disabled={!data.affiliationCount}
+          disabled={!data.affiliationCount || !data.hasUnnamedContactLists}
         />
       )}
     </>
   );
 };
 
-const focalPointInvitations = {
-  key: 'focal_points',
+AffiliationCatalogFields.propTypes = {
+  eventId: PropTypes.number.isRequired,
+  regformId: PropTypes.number.isRequired,
+};
+
+const affiliationCatalogInvitations = {
+  key: 'affiliation_catalog',
   buttonLabel: Translate.string('Affiliation Catalog'),
-  Component: AffiliationCatalogField,
-  extraFields: ['focal_points'],
+  Component: AffiliationCatalogFields,
+  extraFields: ['include_focal_points', 'contact_lists', 'include_unnamed_lists'],
   initialValues: {
-    focal_points: {focalPointCount: 0, affiliationCount: 0},
+    affiliation_catalog_recipient_count: 0,
     include_focal_points: true,
     contact_lists: [],
     include_unnamed_lists: true,
   },
-  getCount: ({focal_points: focalPoints, include_focal_points: includeFocalPoints}) =>
-    includeFocalPoints ? (focalPoints?.focalPointCount ?? 0) : 0,
+  getCount: ({affiliation_catalog_recipient_count: recipientCount}) => recipientCount,
   getSubmitURL: ({eventId, regformId}) =>
-    inviteFocalPointsURL({event_id: eventId, reg_form_id: regformId}),
+    inviteAffiliationCatalogURL({event_id: eventId, reg_form_id: regformId}),
 };
 
-export default focalPointInvitations;
+export default affiliationCatalogInvitations;

@@ -12,7 +12,11 @@ import {Field, useForm} from 'react-final-form';
 import {FinalCheckbox, FinalDropdown} from 'indico/react/forms';
 import {Translate} from 'indico/react/i18n';
 
-export default function ContactListRecipientFields({contactListOptions, allowNoContactLists}) {
+export default function ContactListRecipientFields({
+  contactListOptions,
+  allowNoContactLists,
+  hasUnnamedContactLists,
+}) {
   const form = useForm();
   return (
     <>
@@ -40,7 +44,11 @@ export default function ContactListRecipientFields({contactListOptions, allowNoC
           <FinalCheckbox
             name="include_unnamed_lists"
             label={Translate.string('Send to contacts in unnamed lists')}
-            disabled={!contactListOptions.length || (!allowNoContactLists && !contactLists.length)}
+            disabled={
+              !hasUnnamedContactLists ||
+              !contactListOptions.length ||
+              (!allowNoContactLists && !contactLists.length)
+            }
             showAsToggle
           />
         )}
@@ -52,8 +60,10 @@ export default function ContactListRecipientFields({contactListOptions, allowNoC
 ContactListRecipientFields.propTypes = {
   contactListOptions: PropTypes.arrayOf(PropTypes.string).isRequired,
   allowNoContactLists: PropTypes.bool,
+  hasUnnamedContactLists: PropTypes.bool,
 };
 
 ContactListRecipientFields.defaultProps = {
   allowNoContactLists: false,
+  hasUnnamedContactLists: true,
 };
