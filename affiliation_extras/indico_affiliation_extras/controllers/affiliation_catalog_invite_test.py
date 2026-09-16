@@ -93,8 +93,7 @@ def test_invite_affiliation_catalog_focal_points(
             'skip_moderation': False,
             'skip_access_check': False,
             'lock_email': False,
-            'include_focal_points': True,
-            'include_contacts': False,
+            'recipient_source': 'focal_points',
             'contact_lists': ['Operations'],
             'include_unnamed_lists': False,
         },
@@ -105,7 +104,7 @@ def test_invite_affiliation_catalog_focal_points(
     assert resp.json['skipped'] == 0
     assert [inv.email for inv in dummy_regform.invitations] == ['alice@example.test']
     log_entry = dummy_regform.event.log_entries.filter_by(module='Registration').one()
-    assert log_entry.data['Include contacts'] is False
+    assert log_entry.data['Recipient source'] == 'focal_points'
     assert log_entry.data['Contact lists'] == []
     assert log_entry.data['Include unnamed contact lists'] is False
 
@@ -140,8 +139,7 @@ def test_invite_affiliation_catalog_contacts(
             'sender_address': dummy_user.email,
             'subject': 'Invitation',
             'body': 'Please register',
-            'include_focal_points': False,
-            'include_contacts': True,
+            'recipient_source': 'contacts',
             'contact_lists': ['Operations'],
             'include_unnamed_lists': True,
         },
@@ -161,10 +159,9 @@ def test_invite_affiliation_catalog_contacts(
     assert log_entry.summary == 'Invitations sent'
     assert log_entry.user == dummy_user
     assert log_entry.data['Invitation mode'] == 'Affiliation catalog'
-    assert log_entry.data['Include contacts'] is True
+    assert log_entry.data['Recipient source'] == 'contacts'
     assert log_entry.data['Contact lists'] == ['Operations']
     assert log_entry.data['Include unnamed contact lists'] is True
-    assert log_entry.data['Include focal points'] is False
 
 
 @pytest.mark.usefixtures('no_csrf_check')
@@ -195,8 +192,7 @@ def test_invite_affiliation_catalog_uses_matching_user_data(
             'sender_address': dummy_user.email,
             'subject': 'Invitation',
             'body': 'Please register',
-            'include_focal_points': False,
-            'include_contacts': True,
+            'recipient_source': 'contacts',
             'contact_lists': ['Operations'],
             'include_unnamed_lists': False,
         },
@@ -236,8 +232,7 @@ def test_invite_affiliation_catalog_omits_ambiguous_affiliation(
             'sender_address': dummy_user.email,
             'subject': 'Invitation',
             'body': 'Please register',
-            'include_focal_points': False,
-            'include_contacts': True,
+            'recipient_source': 'contacts',
             'contact_lists': ['Operations'],
             'include_unnamed_lists': False,
         },
@@ -284,8 +279,7 @@ def test_invite_affiliation_catalog_returns_invitations_sorted_by_name(
             'skip_moderation': False,
             'skip_access_check': False,
             'lock_email': False,
-            'include_focal_points': True,
-            'include_contacts': False,
+            'recipient_source': 'focal_points',
             'contact_lists': [],
             'include_unnamed_lists': False,
         },
@@ -409,15 +403,14 @@ def test_affiliation_catalog_invite_recipient_count_deduplicates_sources(
     resp = test_client.post(
         _recipient_count_url(dummy_regform),
         json={
-            'include_focal_points': True,
-            'include_contacts': True,
+            'recipient_source': 'both',
             'contact_lists': ['Operations'],
             'include_unnamed_lists': False,
         },
     )
 
     assert resp.status_code == 200
-    assert resp.json == {'recipient_count': 2}
+    assert resp.json == {'contact_recipient_count': 2, 'recipient_count': 2}
 
 
 @pytest.mark.usefixtures('no_csrf_check')
@@ -440,8 +433,7 @@ def test_affiliation_catalog_invite_rejects_unknown_contact_list(
     resp = test_client.post(
         _recipient_count_url(dummy_regform),
         json={
-            'include_focal_points': False,
-            'include_contacts': True,
+            'recipient_source': 'contacts',
             'contact_lists': ['Unknown'],
             'include_unnamed_lists': False,
         },
@@ -452,7 +444,7 @@ def test_affiliation_catalog_invite_rejects_unknown_contact_list(
 
 
 @pytest.mark.usefixtures('no_csrf_check')
-def test_affiliation_catalog_invite_recipient_count_allows_no_source(
+def test_affiliation_catalog_invite_recipient_count_requires_source(
     test_client,
     dummy_regform,
     dummy_user,
@@ -463,15 +455,13 @@ def test_affiliation_catalog_invite_recipient_count_allows_no_source(
     resp = test_client.post(
         _recipient_count_url(dummy_regform),
         json={
-            'include_focal_points': False,
-            'include_contacts': False,
             'contact_lists': [],
             'include_unnamed_lists': False,
         },
     )
 
-    assert resp.status_code == 200
-    assert resp.json == {'recipient_count': 0}
+    assert resp.status_code == 422
+    assert 'recipient_source' in resp.json['webargs_errors']
 
 
 @pytest.mark.usefixtures('no_csrf_check')
@@ -494,24 +484,23 @@ def test_affiliation_catalog_invite_recipient_count_ignores_disabled_contacts(
     resp = test_client.post(
         _recipient_count_url(dummy_regform),
         json={
-            'include_focal_points': False,
-            'include_contacts': False,
+            'recipient_source': 'focal_points',
             'contact_lists': ['Unknown'],
             'include_unnamed_lists': True,
         },
     )
 
     assert resp.status_code == 200
-    assert resp.json == {'recipient_count': 0}
+    assert resp.json == {'contact_recipient_count': 0, 'recipient_count': 0}
 
 
 @pytest.mark.usefixtures('no_csrf_check')
-@pytest.mark.parametrize('include_contacts', (False, True))
-def test_invite_affiliation_catalog_rejects_no_recipient_source(
+@pytest.mark.parametrize('recipient_source', ('contacts', 'both'))
+def test_invite_affiliation_catalog_rejects_no_contact_source(
     test_client,
     dummy_regform,
     dummy_user,
-    include_contacts,
+    recipient_source,
 ):
     dummy_regform.event.update_principal(dummy_user, full_access=True)
     _login(test_client, dummy_user)
@@ -522,8 +511,7 @@ def test_invite_affiliation_catalog_rejects_no_recipient_source(
             'sender_address': dummy_user.email,
             'subject': 'Invitation',
             'body': 'Please register',
-            'include_focal_points': False,
-            'include_contacts': include_contacts,
+            'recipient_source': recipient_source,
             'contact_lists': [],
             'include_unnamed_lists': False,
         },
