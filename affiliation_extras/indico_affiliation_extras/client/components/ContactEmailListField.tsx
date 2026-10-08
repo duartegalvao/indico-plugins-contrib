@@ -6,7 +6,7 @@
 // MIT License see the LICENSE file for more details.
 
 import React from 'react';
-import {Icon, Label, Popup} from 'semantic-ui-react';
+import {Button, Label, Popup} from 'semantic-ui-react';
 import type {DropdownProps} from 'semantic-ui-react';
 
 import {Translate} from 'indico/react/i18n';
@@ -49,6 +49,7 @@ export default function ContactEmailListField({
     return (
       <Label
         {...defaultLabelProps}
+        as="span"
         basic={inactive}
         styleName={inactive ? 'inactive-email' : undefined}
         content={
@@ -61,9 +62,15 @@ export default function ContactEmailListField({
                   : Translate.string('Disable email temporarily')
               }
               trigger={
-                <Icon
-                  name={inactive ? 'check' : 'ban'}
+                <Button
+                  type="button"
+                  icon={inactive ? 'check' : 'ban'}
+                  aria-label={Translate.string('Disable email {email}', {email})}
+                  toggle
+                  active={inactive}
                   onClick={event => handleToggleInactiveEmail(event, email)}
+                  onFocus={event => event.stopPropagation()}
+                  onKeyDown={event => event.stopPropagation()}
                   styleName="toggle-inactive-email"
                 />
               }

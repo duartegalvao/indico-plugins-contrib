@@ -26,7 +26,18 @@
   }
 }
 
-:global(.ui.label) .toggle-inactive-email {
+:global(.ui.label) :global(.ui.button).toggle-inactive-email {
+  background: transparent !important;
+  border: 0;
+  box-shadow: none;
+  color: inherit !important;
+  font-size: inherit;
   margin-left: 0.45em;
   margin-right: 0;
+  padding: 0;
+
+  &:focus-visible {
+    outline: 2px solid currentcolor;
+    outline-offset: 2px;
+  }
 }
