@@ -17,7 +17,14 @@ def _login(test_client, user):
 class TestCatalogSave:
     @pytest.mark.parametrize('case', ('empty-lists', 'empty-members', 'duplicate-names'))
     def test_rejected_edit_preserves_catalog(
-        self, test_client, db, dummy_event, dummy_user, dummy_contact_affiliation, create_event_catalog, case,
+        self,
+        test_client,
+        db,
+        dummy_event,
+        dummy_user,
+        dummy_contact_affiliation,
+        create_event_catalog,
+        case,
     ):
         dummy_event.update_principal(dummy_user, full_access=True)
         _login(test_client, dummy_user)

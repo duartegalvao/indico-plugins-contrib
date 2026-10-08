@@ -52,7 +52,9 @@ class _ContactRecipientGroup:
 
 
 def _get_catalog_contact_lists(
-    affiliation_ids: set[int], contact_lists: Collection[str], include_unnamed_lists: bool,
+    affiliation_ids: set[int],
+    contact_lists: Collection[str],
+    include_unnamed_lists: bool,
 ) -> list[AffiliationContactList]:
     filters = []
     if contact_lists:
@@ -81,17 +83,18 @@ def _get_focal_point_recipients(event: Event, affiliation_ids: set[int]) -> list
         if not user.email:
             continue
         affiliations = {
-            entry.affiliation.name for entry in user.focal_point_entries
-            if entry.affiliation_id in affiliation_ids
+            entry.affiliation.name for entry in user.focal_point_entries if entry.affiliation_id in affiliation_ids
         }
         fallback_affiliation = next(iter(affiliations)) if len(affiliations) == 1 else ''
-        recipients.append(InvitationRecipient(
-            first_name=user.first_name,
-            last_name=user.last_name,
-            email=user.email,
-            affiliation=user.affiliation or fallback_affiliation,
-            id=user.id,
-        ))
+        recipients.append(
+            InvitationRecipient(
+                first_name=user.first_name,
+                last_name=user.last_name,
+                email=user.email,
+                affiliation=user.affiliation or fallback_affiliation,
+                id=user.id,
+            )
+        )
     return recipients
 
 
@@ -102,9 +105,12 @@ def _get_contact_users(contact_lists: Sequence[AffiliationContactList]) -> dict[
 
     return {
         user_email.email: user_email.user
-        for user_email in UserEmail.query.join(User, User.id == UserEmail.user_id).options(
+        for user_email in UserEmail.query
+        .join(User, User.id == UserEmail.user_id)
+        .options(
             contains_eager('user').joinedload('_primary_email'),
-        ).filter(
+        )
+        .filter(
             UserEmail.email.in_(emails),
             ~UserEmail.is_user_deleted,
             ~User.is_deleted,
@@ -113,7 +119,8 @@ def _get_contact_users(contact_lists: Sequence[AffiliationContactList]) -> dict[
 
 
 def _group_contact_recipients(
-    contact_lists: Sequence[AffiliationContactList], users_by_email: dict[str, User],
+    contact_lists: Sequence[AffiliationContactList],
+    users_by_email: dict[str, User],
 ) -> list[_ContactRecipientGroup]:
     groups: dict[_RecipientIdentity, _ContactRecipientGroup] = {}
     for contact_list in contact_lists:
@@ -137,18 +144,21 @@ def _get_contact_recipients(contact_lists: Sequence[AffiliationContactList]) -> 
         primary_email = user.email.lower() if user else None
         email = primary_email if primary_email in group.emails else min(group.emails, key=str.lower)
         fallback_affiliation = next(iter(group.affiliations)) if len(group.affiliations) == 1 else ''
-        recipients.append(InvitationRecipient(
-            first_name=user.first_name if user else '',
-            last_name=user.last_name if user else '',
-            email=email,
-            affiliation=(user.affiliation if user else '') or fallback_affiliation,
-            id=user.id if user else None,
-        ))
+        recipients.append(
+            InvitationRecipient(
+                first_name=user.first_name if user else '',
+                last_name=user.last_name if user else '',
+                email=email,
+                affiliation=(user.affiliation if user else '') or fallback_affiliation,
+                id=user.id if user else None,
+            )
+        )
     return recipients
 
 
 def _combine_invitation_recipients(
-    focal_points: Sequence[InvitationRecipient], contacts: Sequence[InvitationRecipient],
+    focal_points: Sequence[InvitationRecipient],
+    contacts: Sequence[InvitationRecipient],
 ) -> list[InvitationRecipient]:
     unique_recipients: dict[_RecipientIdentity, InvitationRecipient] = {}
     for recipient in sorted(focal_points, key=lambda recipient: recipient.email.lower()):
@@ -180,19 +190,25 @@ def get_affiliation_catalog_invitation_recipients(
 def filter_invitation_recipients(regform, recipients):
     """Exclude recipients already invited or actively registered by email or user identity."""
     invited = {inv.email.lower() for inv in regform.invitations}
-    invited_user_ids = {
-        user_id for user_id, in db.session.query(UserEmail.user_id).join(User).filter(
-            UserEmail.email.in_(invited),
-            ~UserEmail.is_user_deleted,
-            ~User.is_deleted,
-        ).distinct()
-    } if invited else set()
+    invited_user_ids = (
+        {
+            user_id
+            for (user_id,) in db.session
+            .query(UserEmail.user_id)
+            .join(User)
+            .filter(
+                UserEmail.email.in_(invited),
+                ~UserEmail.is_user_deleted,
+                ~User.is_deleted,
+            )
+            .distinct()
+        }
+        if invited
+        else set()
+    )
     registrations = [r for r in regform.registrations if r.is_active]
     registered = {r.email.lower() for r in registrations if r.email}
     registered_user_ids = {r.user_id for r in registrations if r.user_id is not None}
     existing = invited | registered
     existing_user_ids = invited_user_ids | registered_user_ids
-    return [
-        r for r in recipients
-        if r.email and r.email.lower() not in existing and r.id not in existing_user_ids
-    ]
+    return [r for r in recipients if r.email and r.email.lower() not in existing and r.id not in existing_user_ids]
