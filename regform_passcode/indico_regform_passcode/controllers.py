@@ -6,7 +6,6 @@
 # MIT License see the LICENSE file for more details.
 
 from flask import flash, redirect, session
-from werkzeug.exceptions import NotFound
 
 from indico.modules.events.registration.controllers.display import RHRegistrationForm
 from indico.util.i18n import _
