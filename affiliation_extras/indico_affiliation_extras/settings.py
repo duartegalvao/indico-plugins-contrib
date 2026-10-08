@@ -20,5 +20,6 @@ event_settings = EventSettingsProxy(
     'plugin_affiliation_extras',
     {
         'default_catalog_id': None,
+        'focal_point_enabled_regform_ids': [],
     },
 )
