@@ -1,0 +1,15 @@
+{% if event.type == 'conference' %}
+    {% extends 'events/registration/display/_event_regform_base.html' %}
+{% else %}
+    {% extends 'events/registration/display/_meeting_registration_base.html' %}
+{% endif %}
+
+{% from 'forms/_form.html' import form_header, form_rows, form_footer %}
+
+{% block content %}
+    {{ form_header(form, action=action, id='regform-passcode', no_ajax=true) }}
+    {{ form_rows(form) }}
+    {% call form_footer(form) %}
+        <button type="submit" class="i-button highlight">{% trans %}Submit{% endtrans %}</button>
+    {% endcall %}
+{% endblock %}
