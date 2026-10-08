@@ -9,7 +9,7 @@ import {ContactList, ExtendedAffiliation} from '../types';
 
 export const getActiveContactListEmails = ({
   emails,
-  inactive_emails: inactiveEmails = [],
+  inactive_emails: inactiveEmails,
 }: ContactList) => {
   const inactiveEmailSet = new Set(inactiveEmails);
   return emails.filter(email => !inactiveEmailSet.has(email));

@@ -291,13 +291,20 @@ def test_resolve_affiliations_uses_constant_number_of_queries(db, count_queries)
     assert count() <= 6
 
 
+def test_populate_contacts_requires_inactive_emails(db):
+    affiliation = _create_affiliation(db, 'CERN')
+
+    with pytest.raises(KeyError, match='inactive_emails'):
+        util.populate_contacts(affiliation, [{'name': 'Ops', 'emails': ['ops@example.test']}])
+
+
 def test_populate_contacts_adds_new_contact_and_logs_summary(db):
     affiliation = _create_affiliation(db, 'CERN')
 
     changes, log_fields = util.populate_contacts(
         affiliation,
         [
-            {'name': 'Ops', 'emails': ['ops@example.test']},
+            {'name': 'Ops', 'emails': ['ops@example.test'], 'inactive_emails': []},
         ],
     )
 
@@ -346,7 +353,7 @@ def test_populate_contacts_rename_only(db):
     changes, log_fields = util.populate_contacts(
         affiliation,
         [
-            {'name': 'New name', 'emails': ['old@example.test']},
+            {'name': 'New name', 'emails': ['old@example.test'], 'inactive_emails': []},
         ],
     )
 
@@ -368,7 +375,7 @@ def test_populate_contacts_emails_only(db):
     changes, log_fields = util.populate_contacts(
         affiliation,
         [
-            {'name': 'Old name', 'emails': ['new@example.test']},
+            {'name': 'Old name', 'emails': ['new@example.test'], 'inactive_emails': []},
         ],
     )
 
@@ -473,7 +480,7 @@ def test_populate_contacts_rename_and_emails(db):
     changes, log_fields = util.populate_contacts(
         affiliation,
         [
-            {'name': 'New name', 'emails': ['new@example.test']},
+            {'name': 'New name', 'emails': ['new@example.test'], 'inactive_emails': []},
         ],
     )
 
@@ -495,7 +502,7 @@ def test_populate_contacts_noop(db):
     changes, log_fields = util.populate_contacts(
         affiliation,
         [
-            {'name': 'Old name', 'emails': ['old@example.test']},
+            {'name': 'Old name', 'emails': ['old@example.test'], 'inactive_emails': []},
         ],
     )
 
@@ -510,7 +517,7 @@ def test_populate_contacts_email_order_only(db):
     changes, log_fields = util.populate_contacts(
         affiliation,
         [
-            {'name': 'Old name', 'emails': ['b@example.test', 'a@example.test']},
+            {'name': 'Old name', 'emails': ['b@example.test', 'a@example.test'], 'inactive_emails': []},
         ],
     )
 
@@ -521,7 +528,7 @@ def test_populate_contacts_email_order_only(db):
 def test_populate_contacts_deletes_omitted_contact(db):
     affiliation = _create_affiliation(db, 'CERN')
     _create_contact(db, affiliation, 'Ops', ['ops@example.test'])
-    payload = [{'name': 'New list', 'emails': ['new@example.test']}]
+    payload = [{'name': 'New list', 'emails': ['new@example.test'], 'inactive_emails': []}]
 
     changes, log_fields = util.populate_contacts(affiliation, payload)
 
@@ -560,7 +567,7 @@ def test_populate_contacts_uses_unnamed_list_label_in_summary(db):
     changes, log_fields = util.populate_contacts(
         affiliation,
         [
-            {'name': '', 'emails': ['ops@example.test']},
+            {'name': '', 'emails': ['ops@example.test'], 'inactive_emails': []},
         ],
     )
 
@@ -584,9 +591,9 @@ def test_populate_contacts_mixed_add_remove_and_modify(db):
     changes, log_fields = util.populate_contacts(
         affiliation,
         [
-            {'name': 'Keep', 'emails': ['keep@example.test']},
-            {'name': 'Change renamed', 'emails': ['new@example.test']},
-            {'name': 'Add', 'emails': ['add@example.test']},
+            {'name': 'Keep', 'emails': ['keep@example.test'], 'inactive_emails': []},
+            {'name': 'Change renamed', 'emails': ['new@example.test'], 'inactive_emails': []},
+            {'name': 'Add', 'emails': ['add@example.test'], 'inactive_emails': []},
         ],
     )
 
@@ -613,8 +620,8 @@ def test_populate_contacts_swaps_names(db):
     util.populate_contacts(
         affiliation,
         [
-            {'name': 'IPO', 'emails': ['cro@example.test']},
-            {'name': 'CRO', 'emails': ['ipo@example.test']},
+            {'name': 'IPO', 'emails': ['cro@example.test'], 'inactive_emails': []},
+            {'name': 'CRO', 'emails': ['ipo@example.test'], 'inactive_emails': []},
         ],
     )
 
@@ -671,8 +678,8 @@ def test_populate_contacts_duplicate_names_hit_unique_index(db):
         util.populate_contacts(
             affiliation,
             [
-                {'name': 'Ops', 'emails': ['ops@example.test']},
-                {'name': 'ops', 'emails': ['other@example.test']},
+                {'name': 'Ops', 'emails': ['ops@example.test'], 'inactive_emails': []},
+                {'name': 'ops', 'emails': ['other@example.test'], 'inactive_emails': []},
             ],
         )
     db.session.rollback()

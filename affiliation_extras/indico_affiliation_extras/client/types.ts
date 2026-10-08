@@ -13,7 +13,7 @@ export interface ContactList {
   id?: number;
   name: string;
   emails: string[];
-  inactive_emails?: string[];
+  inactive_emails: string[];
 }
 
 export interface GroupInfo {

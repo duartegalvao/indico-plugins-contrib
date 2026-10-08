@@ -6,8 +6,7 @@
 // MIT License see the LICENSE file for more details.
 
 import React from 'react';
-import {Button, Label, Popup} from 'semantic-ui-react';
-import type {DropdownProps} from 'semantic-ui-react';
+import {Button, DropdownProps, Label, Popup} from 'semantic-ui-react';
 
 import {Translate} from 'indico/react/i18n';
 

@@ -134,9 +134,9 @@ class AffiliationExtraAttrsArgs(mm.Schema):
             raise ValidationError('Contact list names must be unique')
         for lst in contact_lists:
             emails = lst.get('emails')
-            if emails is None:
+            inactive_emails = lst.get('inactive_emails')
+            if emails is None or inactive_emails is None:
                 continue
-            inactive_emails = lst.get('inactive_emails', [])
             if not set(inactive_emails) <= set(emails):
                 raise ValidationError('Inactive emails must belong to the contact list')
             for email in emails:

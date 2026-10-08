@@ -200,7 +200,7 @@ def _apply_contact_lists(affiliation: Affiliation, contact_lists: list[dict]) ->
             AffiliationContactList(
                 name=contact_data['name'],
                 emails=contact_data['emails'],
-                inactive_emails=contact_data.get('inactive_emails', []),
+                inactive_emails=contact_data['inactive_emails'],
             )
         )
     db.session.flush()

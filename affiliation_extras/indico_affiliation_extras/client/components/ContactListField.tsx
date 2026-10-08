@@ -41,7 +41,7 @@ interface AdvancedContactListRowProps extends ContactListRowBaseProps {
 }
 
 function ContactListRow({
-  value: {id, name, emails, inactive_emails: inactiveEmails = []},
+  value: {id, name, emails, inactive_emails: inactiveEmails},
   onChange,
   onDelete,
   nameOptions,
