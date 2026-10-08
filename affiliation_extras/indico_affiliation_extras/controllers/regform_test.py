@@ -46,8 +46,15 @@ class TestInvitations:
     @pytest.mark.parametrize('first_source', ('contacts', 'focal_points'))
     @pytest.mark.usefixtures('no_csrf_check')
     def test_invite_catalog_skips_previously_invited_user(
-        self, test_client, db, dummy_regform, dummy_user, create_user, create_event_catalog,
-        monkeypatch, first_source,
+        self,
+        test_client,
+        db,
+        dummy_regform,
+        dummy_user,
+        create_user,
+        create_event_catalog,
+        monkeypatch,
+        first_source,
     ):
         monkeypatch.setattr('indico.modules.events.registration.util.notify_invitation', lambda *args, **kwargs: None)
         dummy_regform.event.update_principal(dummy_user, full_access=True)
@@ -59,9 +66,13 @@ class TestInvitations:
         contact = create_user(1, email='primary@example.test')
         contact.secondary_emails.add('secondary@example.test')
         set_focal_points(managed, {contact})
-        db.session.add(AffiliationContactList(
-            affiliation=managed, name='Operations', emails=['secondary@example.test'],
-        ))
+        db.session.add(
+            AffiliationContactList(
+                affiliation=managed,
+                name='Operations',
+                emails=['secondary@example.test'],
+            )
+        )
         db.session.flush()
         data = {
             'sender_address': dummy_user.email,
@@ -86,8 +97,16 @@ class TestInvitations:
     @pytest.mark.parametrize('registered', (True, False))
     @pytest.mark.usefixtures('no_csrf_check')
     def test_invite_secondary_contact_address(
-        self, test_client, db, dummy_regform, dummy_user, create_user, create_registration,
-        create_event_catalog, monkeypatch, registered,
+        self,
+        test_client,
+        db,
+        dummy_regform,
+        dummy_user,
+        create_user,
+        create_registration,
+        create_event_catalog,
+        monkeypatch,
+        registered,
     ):
         monkeypatch.setattr('indico.modules.events.registration.util.notify_invitation', lambda *args, **kwargs: None)
         dummy_regform.event.update_principal(dummy_user, full_access=True)
@@ -100,19 +119,26 @@ class TestInvitations:
         contact.secondary_emails.add('secondary@example.test')
         if registered:
             db.session.add(create_registration(contact, dummy_regform))
-        db.session.add(AffiliationContactList(
-            affiliation=managed, name='Operations', emails=['secondary@example.test'],
-        ))
+        db.session.add(
+            AffiliationContactList(
+                affiliation=managed,
+                name='Operations',
+                emails=['secondary@example.test'],
+            )
+        )
         db.session.flush()
 
-        resp = test_client.post(_url(dummy_regform), json={
-            'sender_address': dummy_user.email,
-            'subject': 'Invitation',
-            'body': 'Please register',
-            'recipient_source': 'contacts',
-            'contact_lists': ['Operations'],
-            'include_unnamed_lists': False,
-        })
+        resp = test_client.post(
+            _url(dummy_regform),
+            json={
+                'sender_address': dummy_user.email,
+                'subject': 'Invitation',
+                'body': 'Please register',
+                'recipient_source': 'contacts',
+                'contact_lists': ['Operations'],
+                'include_unnamed_lists': False,
+            },
+        )
 
         assert resp.status_code == 200
         assert resp.json['sent'] == (0 if registered else 1)
@@ -123,8 +149,16 @@ class TestInvitations:
     @pytest.mark.parametrize('include_primary', (True, False))
     @pytest.mark.usefixtures('no_csrf_check')
     def test_invite_catalog_deduplicates_user_addresses(
-        self, test_client, db, dummy_regform, dummy_user, create_user, create_event_catalog,
-        monkeypatch, recipient_source, include_primary,
+        self,
+        test_client,
+        db,
+        dummy_regform,
+        dummy_user,
+        create_user,
+        create_event_catalog,
+        monkeypatch,
+        recipient_source,
+        include_primary,
     ):
         monkeypatch.setattr('indico.modules.events.registration.util.notify_invitation', lambda *args, **kwargs: None)
         dummy_regform.event.update_principal(dummy_user, full_access=True)
@@ -151,12 +185,15 @@ class TestInvitations:
         count = test_client.post(_recipient_count_url(dummy_regform), json=source)
         assert count.status_code == 200
         assert count.json == {'recipient_count': 2}
-        resp = test_client.post(_url(dummy_regform), json={
-            **source,
-            'sender_address': dummy_user.email,
-            'subject': 'Invitation',
-            'body': 'Please register',
-        })
+        resp = test_client.post(
+            _url(dummy_regform),
+            json={
+                **source,
+                'sender_address': dummy_user.email,
+                'subject': 'Invitation',
+                'body': 'Please register',
+            },
+        )
         assert resp.status_code == 200
         assert resp.json['sent'] == 2
         assert resp.json['skipped'] == 0
@@ -165,12 +202,15 @@ class TestInvitations:
         )
         assert {inv.email for inv in dummy_regform.invitations} == {expected_email, 'unknown@example.test'}
 
-    @pytest.mark.parametrize(('profile_affiliation', 'multiple_affiliations', 'expected_affiliation'), (
-        ('', False, 'CERN'),
-        ('WIPO', False, 'WIPO'),
-        ('', True, ''),
-        ('WIPO', True, 'WIPO'),
-    ))
+    @pytest.mark.parametrize(
+        ('profile_affiliation', 'multiple_affiliations', 'expected_affiliation'),
+        (
+            ('', False, 'CERN'),
+            ('WIPO', False, 'WIPO'),
+            ('', True, ''),
+            ('WIPO', True, 'WIPO'),
+        ),
+    )
     @pytest.mark.parametrize('recipient_source', ('focal_points', 'both'))
     @pytest.mark.usefixtures('no_csrf_check')
     def test_invite_affiliation_catalog_focal_points(
@@ -337,7 +377,9 @@ class TestInvitations:
         assert resp.status_code == 200
         (invitation,) = dummy_regform.invitations
         assert (invitation.first_name, invitation.last_name, invitation.affiliation) == (
-            'Alice', 'Contact', expected_affiliation
+            'Alice',
+            'Contact',
+            expected_affiliation,
         )
 
     @pytest.mark.usefixtures('no_csrf_check')
@@ -500,10 +542,14 @@ class TestInvitations:
         set_focal_points(unmanaged, {create_user(2)})
         db.session.add_all((
             AffiliationContactList(
-                affiliation=managed, name='Operations', emails=['ops@example.test'] if has_contacts else [],
+                affiliation=managed,
+                name='Operations',
+                emails=['ops@example.test'] if has_contacts else [],
             ),
             AffiliationContactList(
-                affiliation=managed, name='', emails=['contact@example.test'] if has_contacts else [],
+                affiliation=managed,
+                name='',
+                emails=['contact@example.test'] if has_contacts else [],
             ),
             AffiliationContactList(affiliation=additional, name='Operations', emails=[]),
             AffiliationContactList(affiliation=managed, name='Empty', emails=[]),
@@ -700,8 +746,17 @@ class TestInvitations:
     @pytest.mark.parametrize('contact_list_name', ('Operations', '', None))
     @pytest.mark.parametrize('count_only', (False, True))
     def test_catalog_rejects_empty_contact_selection(
-        self, test_client, db, dummy_regform, dummy_user, create_user, create_event_catalog,
-        recipient_source, contact_list_name, count_only, monkeypatch,
+        self,
+        test_client,
+        db,
+        dummy_regform,
+        dummy_user,
+        create_user,
+        create_event_catalog,
+        recipient_source,
+        contact_list_name,
+        count_only,
+        monkeypatch,
     ):
         monkeypatch.setattr('indico.modules.events.registration.util.notify_invitation', lambda *args, **kwargs: None)
         dummy_regform.event.update_principal(dummy_user, full_access=True)

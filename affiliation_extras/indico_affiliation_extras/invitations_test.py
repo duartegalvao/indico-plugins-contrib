@@ -22,9 +22,12 @@ class TestContactInvitationRecipients:
         dummy_user.secondary_emails.add('alice.secondary@example.test')
         affiliation = Affiliation(name='CERN')
         db.session.add(affiliation)
-        affiliation.contact_lists.append(AffiliationContactList(
-            name='Ops', emails=['alice.secondary@example.test'],
-        ))
+        affiliation.contact_lists.append(
+            AffiliationContactList(
+                name='Ops',
+                emails=['alice.secondary@example.test'],
+            )
+        )
         create_event_catalog(dummy_event, {affiliation})
         set_focal_points(affiliation, {dummy_user})
         db.session.flush()
@@ -43,9 +46,12 @@ class TestContactInvitationRecipients:
         dummy_user.email = 'z.primary@example.test'
         affiliation = Affiliation(name='CERN')
         db.session.add(affiliation)
-        affiliation.contact_lists.append(AffiliationContactList(
-            name='Ops', emails=[dummy_user.email, 'alice@example.test'],
-        ))
+        affiliation.contact_lists.append(
+            AffiliationContactList(
+                name='Ops',
+                emails=[dummy_user.email, 'alice@example.test'],
+            )
+        )
         create_event_catalog(dummy_event, {affiliation})
         db.session.flush()
 
@@ -58,15 +64,25 @@ class TestContactInvitationRecipients:
 
         assert [recipient.email for recipient in recipients] == ['alice@example.test', dummy_user.email]
 
-    @pytest.mark.parametrize(('profile_affiliation', 'second_affiliation', 'expected'), (
-        ('', 'WIPO', ''),
-        ('Profile', 'WIPO', 'Profile'),
-        ('', 'CERN', 'CERN'),
-    ))
+    @pytest.mark.parametrize(
+        ('profile_affiliation', 'second_affiliation', 'expected'),
+        (
+            ('', 'WIPO', ''),
+            ('Profile', 'WIPO', 'Profile'),
+            ('', 'CERN', 'CERN'),
+        ),
+    )
     @pytest.mark.parametrize('include_primary', (True, False))
     def test_alias_affiliation_ambiguity(
-        self, db, dummy_event, dummy_user, create_event_catalog,
-        profile_affiliation, second_affiliation, expected, include_primary,
+        self,
+        db,
+        dummy_event,
+        dummy_user,
+        create_event_catalog,
+        profile_affiliation,
+        second_affiliation,
+        expected,
+        include_primary,
     ):
         dummy_user.affiliation = profile_affiliation
         dummy_user.secondary_emails.add('alice.secondary@example.test')

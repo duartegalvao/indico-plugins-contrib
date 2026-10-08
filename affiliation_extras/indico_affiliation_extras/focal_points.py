@@ -75,11 +75,12 @@ def get_event_catalog_focal_points(event, affiliation_ids=None):
     if not affiliation_ids:
         return set()
     return set(
-        User.query.join(FocalPoint, FocalPoint.user_id == User.id).options(
+        User.query
+        .join(FocalPoint, FocalPoint.user_id == User.id)
+        .options(
             selectinload('focal_point_entries').joinedload('affiliation'),
-        ).filter(
-            FocalPoint.affiliation_id.in_(affiliation_ids), ~User.is_deleted
         )
+        .filter(FocalPoint.affiliation_id.in_(affiliation_ids), ~User.is_deleted)
     )
 
 
