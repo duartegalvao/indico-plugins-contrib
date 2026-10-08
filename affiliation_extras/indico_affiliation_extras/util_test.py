@@ -312,6 +312,33 @@ def test_populate_contacts_adds_new_contact_and_logs_summary(db):
     }
 
 
+@pytest.mark.parametrize('existing_emails', (None, ['on@example.test']))
+def test_populate_contacts_logs_new_inactive_emails(db, existing_emails):
+    affiliation = _create_affiliation(db, 'CERN')
+    if existing_emails is not None:
+        _create_contact(db, affiliation, 'Ops', existing_emails)
+    emails = sorted([*(existing_emails or []), 'off@example.test'])
+
+    changes, log_fields = util.populate_contacts(
+        affiliation,
+        [{'name': 'Ops', 'emails': emails, 'inactive_emails': ['off@example.test']}],
+    )
+
+    expected_changes = {
+        'contact_lists_item_Ops': (existing_emails or [], emails),
+        'contact_lists_inactive_item_Ops': ([], ['off@example.test']),
+    }
+    if existing_emails is None:
+        expected_changes['contact_lists'] = ([], ['Ops'])
+    assert changes == expected_changes
+    assert log_fields == {
+        'contact_lists_item_Ops': {'title': 'Contact list: Ops', 'type': 'list'},
+        'contact_lists_inactive_item_Ops': {'title': 'Inactive emails in contact list: Ops', 'type': 'list'},
+    }
+    assert affiliation.contact_lists[0].emails == emails
+    assert affiliation.contact_lists[0].inactive_emails == ['off@example.test']
+
+
 def test_populate_contacts_rename_only(db):
     affiliation = _create_affiliation(db, 'CERN')
     _create_contact(db, affiliation, 'Old name', ['old@example.test'])
@@ -431,9 +458,11 @@ def test_populate_contacts_removes_stale_inactive_emails_from_full_payload(db):
     assert affiliation.contact_lists[0].inactive_emails == ['off@example.test']
     assert changes == {
         'contact_lists_item_Ops': (['off@example.test', 'old@example.test'], ['off@example.test']),
+        'contact_lists_inactive_item_Ops': (['off@example.test', 'old@example.test'], ['off@example.test']),
     }
     assert log_fields == {
         'contact_lists_item_Ops': {'title': 'Contact list: Ops', 'type': 'list'},
+        'contact_lists_inactive_item_Ops': {'title': 'Inactive emails in contact list: Ops', 'type': 'list'},
     }
 
 

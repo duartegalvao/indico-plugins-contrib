@@ -182,9 +182,13 @@ def _diff_list_names(old: dict, new: dict) -> tuple[list[str], list[str]] | None
     return (old_names, new_names) if old_names != new_names else None
 
 
-def populate_contacts(affiliation: Affiliation, contact_lists: list[dict]) -> tuple[_Changes, _LogFields]:
-    old_contact_lists = serialize_contact_lists(affiliation.contact_lists)
+_CONTACT_LIST_LOG_FIELDS = (
+    ('emails', 'contact_lists_item', 'Contact list'),
+    ('inactive_emails', 'contact_lists_inactive_item', 'Inactive emails in contact list'),
+)
 
+
+def _apply_contact_lists(affiliation: Affiliation, contact_lists: list[dict]) -> None:
     # A contact list is identified only by its name, so rebuild the whole set rather than
     # matching rows. Wiping the old rows in their own flush before inserting the new ones
     # keeps two lists that swap names from clashing on the unique lower(name) index, which
@@ -201,35 +205,36 @@ def populate_contacts(affiliation: Affiliation, contact_lists: list[dict]) -> tu
         )
     db.session.flush()
 
-    new_contact_lists = serialize_contact_lists(affiliation.contact_lists)
-    if old_contact_lists == new_contact_lists:
+
+def _get_contact_list_changes(old_lists: dict[str, dict], new_lists: dict[str, dict]) -> tuple[_Changes, _LogFields]:
+    if old_lists == new_lists:
         return {}, {}
     changes = {}
     log_fields: _LogFields = {}
 
-    # List names changes
-    if names := _diff_list_names(old_contact_lists, new_contact_lists):
+    if names := _diff_list_names(old_lists, new_lists):
         changes['contact_lists'] = names
 
-    # Individual list changes
-    for name in old_contact_lists.keys() | new_contact_lists.keys():
-        old_data = old_contact_lists.get(name, {})
-        new_data = new_contact_lists.get(name, {})
-        old_emails = old_data.get('emails', [])
-        new_emails = new_data.get('emails', [])
+    for name in old_lists.keys() | new_lists.keys():
+        old_data = old_lists.get(name, {})
+        new_data = new_lists.get(name, {})
         label = new_data.get('name') or old_data.get('name')
-        if old_emails != new_emails:
-            key = f'contact_lists_item_{name}'
-            changes[key] = (old_emails, new_emails)
-            log_fields[key] = {'title': f'Contact list: {label}', 'type': 'list'}
-        common_emails = set(old_emails) & set(new_emails)
-        old_inactive_emails = sorted(set(old_data.get('inactive_emails', [])) & common_emails)
-        new_inactive_emails = sorted(set(new_data.get('inactive_emails', [])) & common_emails)
-        if old_inactive_emails != new_inactive_emails:
-            key = f'contact_lists_inactive_item_{name}'
-            changes[key] = (old_inactive_emails, new_inactive_emails)
-            log_fields[key] = {'title': f'Inactive emails in contact list: {label}', 'type': 'list'}
+        for attr, key_prefix, title in _CONTACT_LIST_LOG_FIELDS:
+            old_value = old_data.get(attr, [])
+            new_value = new_data.get(attr, [])
+            if old_value == new_value:
+                continue
+            key = f'{key_prefix}_{name}'
+            changes[key] = (old_value, new_value)
+            log_fields[key] = {'title': f'{title}: {label}', 'type': 'list'}
     return changes, log_fields
+
+
+def populate_contacts(affiliation: Affiliation, contact_lists: list[dict]) -> tuple[_Changes, _LogFields]:
+    old_lists = serialize_contact_lists(affiliation.contact_lists)
+    _apply_contact_lists(affiliation, contact_lists)
+    new_lists = serialize_contact_lists(affiliation.contact_lists)
+    return _get_contact_list_changes(old_lists, new_lists)
 
 
 def serialize_catalog_lists(catalog_lists: list[AffiliationList]) -> dict[int, dict]:
