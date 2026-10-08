@@ -13,6 +13,8 @@ from indico.modules.events.features.util import set_feature_enabled
 from indico.modules.events.models.events import EventType
 from indico.util.date_time import now_utc
 
+from indico_regform_passcode.plugin import RegformPasscodePlugin
+
 
 @pytest.fixture
 def logged_in_user(dummy_user, test_client):
@@ -21,6 +23,34 @@ def logged_in_user(dummy_user, test_client):
 
 
 class TestRegformPasscodePlugin:
+    @pytest.mark.usefixtures('logged_in_user')
+    def test_configured_duration_applies_to_new_grants(self, dummy_regform, test_client, freeze_time):
+        set_feature_enabled(dummy_regform.event, 'registration', True)
+        dummy_regform.require_login = True
+        dummy_regform.start_dt = now_utc() - timedelta(days=1)
+        RegformPasscodePlugin.settings.set('grant_duration', 15)
+        granted_at = now_utc()
+        freeze_time(granted_at)
+        url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
+        test_client.get(url)
+        with test_client.session_transaction() as sess:
+            csrf_token = sess['_csrf_token']
+        response = test_client.post(url + 'passcode', data={'csrf_token': csrf_token})
+        assert response.status_code == 303
+        with test_client.session_transaction() as sess:
+            assert (
+                sess['plugin_regform_passcode_grants'][str(dummy_regform.id)]
+                == (granted_at + timedelta(minutes=15)).timestamp()
+            )
+
+        RegformPasscodePlugin.settings.set('grant_duration', 60)
+        freeze_time(granted_at + timedelta(minutes=16))
+        assert b'id="regform-passcode"' in test_client.get(url).data
+        response = test_client.post(url + 'passcode', data={'csrf_token': csrf_token})
+        assert response.status_code == 303
+        freeze_time(granted_at + timedelta(minutes=32))
+        assert b'id="registration-form-submission-container"' in test_client.get(url).data
+
     @pytest.mark.usefixtures('no_csrf_check', 'logged_in_user')
     @pytest.mark.parametrize('method', ('GET', 'POST'))
     @pytest.mark.parametrize('event_type', (EventType.lecture, EventType.meeting, EventType.conference))
@@ -28,9 +58,7 @@ class TestRegformPasscodePlugin:
         dummy_regform.event.type_ = event_type
         dummy_regform.require_login = True
         set_feature_enabled(dummy_regform.event, 'registration', True)
-        response = test_client.open(
-            f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/', method=method
-        )
+        response = test_client.open(f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/', method=method)
         assert response.status_code == 200
         assert b'id="regform-passcode"' in response.data
         assert dummy_regform.title.encode() in response.data
@@ -47,14 +75,17 @@ class TestRegformPasscodePlugin:
         assert response.status_code == 200
         assert b'Your registration has been completed' in response.data
 
-    @pytest.mark.parametrize(('permission', 'bypass'), (
-        (None, False),
-        ('registration', True),
-        ('registration_edit', False),
-        ('registration_checkin', False),
-        ('registration_moderation', False),
-        ('full_access', True),
-    ))
+    @pytest.mark.parametrize(
+        ('permission', 'bypass'),
+        (
+            (None, False),
+            ('registration', True),
+            ('registration_edit', False),
+            ('registration_checkin', False),
+            ('registration_moderation', False),
+            ('full_access', True),
+        ),
+    )
     def test_registration_management_bypass(self, dummy_regform, dummy_user, test_client, permission, bypass):
         dummy_regform.require_login = True
         set_feature_enabled(dummy_regform.event, 'registration', True)
@@ -111,9 +142,16 @@ class TestRegformPasscodePlugin:
         assert b'id="regform-passcode"' not in response.data
 
         dummy_regform.require_captcha = False
-        response = test_client.post(url, query_string=query, headers={'X-CSRF-Token': csrf_token}, json={
-            'email': dummy_user.email, 'first_name': dummy_user.first_name, 'last_name': dummy_user.last_name,
-        })
+        response = test_client.post(
+            url,
+            query_string=query,
+            headers={'X-CSRF-Token': csrf_token},
+            json={
+                'email': dummy_user.email,
+                'first_name': dummy_user.first_name,
+                'last_name': dummy_user.last_name,
+            },
+        )
         assert response.status_code == 200
         assert 'redirect' in response.json
         assert len(dummy_regform.registrations) == 1
@@ -132,7 +170,7 @@ class TestRegformPasscodePlugin:
         assert b'id="regform-passcode"' in response.data
 
     @pytest.mark.usefixtures('logged_in_user')
-    def test_unlock_is_scoped_and_expires(self, dummy_regform, create_regform, test_client, freeze_time):
+    def test_unlock_is_scoped_and_does_not_renew_grant(self, dummy_regform, create_regform, test_client, freeze_time):
         set_feature_enabled(dummy_regform.event, 'registration', True)
         dummy_regform.require_login = True
         dummy_regform.start_dt = now_utc() - timedelta(days=1)
@@ -156,9 +194,6 @@ class TestRegformPasscodePlugin:
         response = test_client.get(f'/event/{other_regform.event_id}/registrations/{other_regform.id}/')
         assert b'id="regform-passcode"' in response.data
 
-        freeze_time(now_utc() + timedelta(hours=2))
-        assert b'id="regform-passcode"' in test_client.get(url).data
-
     def test_anonymous_user_must_log_in(self, dummy_regform, test_client):
         set_feature_enabled(dummy_regform.event, 'registration', True)
         dummy_regform.require_login = True
@@ -170,9 +205,12 @@ class TestRegformPasscodePlugin:
         assert b'id="regform-passcode"' not in response.data
         assert b'id="registration-form-submission-container"' not in response.data
 
-        response = test_client.post(url + 'passcode', data={
-            'csrf_token': '00000000-0000-0000-0000-000000000000',
-        })
+        response = test_client.post(
+            url + 'passcode',
+            data={
+                'csrf_token': '00000000-0000-0000-0000-000000000000',
+            },
+        )
         assert response.status_code == 302
         assert '/login/' in response.location
         assert b'id="regform-passcode"' not in response.data

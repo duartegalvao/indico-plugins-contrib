@@ -8,6 +8,7 @@
 from datetime import timedelta
 
 from flask import request, session
+from flask_pluginengine import current_plugin
 
 from indico.util.date_time import now_utc
 from indico.web.flask.util import url_for
@@ -34,5 +35,6 @@ def requires_passcode(regform, user, registration):
 
 def grant_passcode_access(regform):
     grants = session.get('plugin_regform_passcode_grants', {}).copy()
-    grants[str(regform.id)] = (now_utc() + timedelta(hours=1)).timestamp()
+    duration = timedelta(minutes=current_plugin.settings.get('grant_duration'))
+    grants[str(regform.id)] = (now_utc() + duration).timestamp()
     session['plugin_regform_passcode_grants'] = grants

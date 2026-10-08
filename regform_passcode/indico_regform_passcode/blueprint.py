@@ -11,5 +11,6 @@ from indico_regform_passcode.controllers import RHUnlockRegistrationForm
 
 
 blueprint = IndicoPluginBlueprint('regform_passcode', __name__, url_prefix='/event/<int:event_id>')
-blueprint.add_url_rule('/registrations/<int:reg_form_id>/passcode', 'unlock', RHUnlockRegistrationForm,
-                       methods=('POST',))
+blueprint.add_url_rule(
+    '/registrations/<int:reg_form_id>/passcode', 'unlock', RHUnlockRegistrationForm, methods=('POST',)
+)
