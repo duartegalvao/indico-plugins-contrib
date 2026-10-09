@@ -6,16 +6,21 @@
 # MIT License see the LICENSE file for more details.
 
 from flask import session
+from flask_pluginengine import render_plugin_template
 
 from indico.core import signals
 from indico.core.plugins import IndicoPlugin
 from indico.modules.events.models.events import EventType
 from indico.modules.events.registration.controllers.display import RHRegistrationForm
+from indico.modules.events.registration.views import WPManageRegistration
 
 from indico_regform_passcode.blueprint import blueprint
 from indico_regform_passcode.forms import PasscodeForm, SettingsForm
 from indico_regform_passcode.util import get_regform_url, requires_passcode
-from indico_regform_passcode.views import WPRegformPasscodeConference, WPRegformPasscodeSimpleEvent
+from indico_regform_passcode.views import (
+    WPRegformPasscodeConference,
+    WPRegformPasscodeSimpleEvent,
+)
 
 
 class RegformPasscodePlugin(IndicoPlugin):
@@ -30,10 +35,23 @@ class RegformPasscodePlugin(IndicoPlugin):
 
     def init(self):
         super().init()
+        self.inject_bundle('main.js', WPManageRegistration)
         self.connect(signals.rh.before_process, self._require_passcode, sender=RHRegistrationForm)
+        self.template_hook('extra-regform-settings', self._passcode_settings)
 
     def get_blueprints(self):
         return blueprint
+
+    def _passcode_settings(self, regform, **kwargs):
+        if not regform.event.can_manage(session.user, permission='registration'):
+            return
+        config = regform.passcode_config
+        settings = {
+            'is_enabled': bool(config and config.is_enabled and regform.require_login),
+            'passcode': config.passcode if config else '',
+            'instructions': config.instructions if config else '',
+        }
+        return render_plugin_template('management/settings_box.html', regform=regform, settings=settings)
 
     def _require_passcode(self, sender, rh, **kwargs):
         if not requires_passcode(rh.regform, session.user, rh.registration):

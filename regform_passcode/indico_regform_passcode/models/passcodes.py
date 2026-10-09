@@ -24,6 +24,10 @@ class RegistrationFormPasscode(db.Model):
     passcode = db.Column(db.String, nullable=False)
     #: The passcode version used to invalidate grants after a code change.
     version = db.Column(db.Integer, nullable=False, default=1)
+    #: Whether passcode protection is enabled.
+    is_enabled = db.Column(db.Boolean, nullable=False, default=True)
+    #: Instructions shown before the participant enters the passcode.
+    instructions = db.Column(db.Text, nullable=False, default='')
 
     regform = db.relationship(
         'RegistrationForm',

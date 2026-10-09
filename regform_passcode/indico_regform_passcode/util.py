@@ -29,12 +29,17 @@ def requires_passcode(regform, user, registration):
         return False
     if regform.event.can_manage(user, permission='registration'):
         return False
-    expires = session.get('plugin_regform_passcode_grants', {}).get(str(regform.id), 0)
-    return expires < now_utc().timestamp()
+    config = regform.passcode_config
+    if not config or not config.is_enabled:
+        return False
+    grant = session.get('plugin_regform_passcode_grants', {}).get(str(regform.id))
+    return (not isinstance(grant, dict) or grant.get('version') != config.version
+            or grant.get('expires', 0) < now_utc().timestamp())
 
 
 def grant_passcode_access(regform):
     grants = session.get('plugin_regform_passcode_grants', {}).copy()
     duration = timedelta(minutes=current_plugin.settings.get('grant_duration'))
-    grants[str(regform.id)] = (now_utc() + duration).timestamp()
+    grants[str(regform.id)] = {'expires': (now_utc() + duration).timestamp(),
+                              'version': regform.passcode_config.version}
     session['plugin_regform_passcode_grants'] = grants

@@ -31,6 +31,8 @@ def upgrade():
         sa.Column('regform_id', sa.Integer(), autoincrement=False, nullable=False),
         sa.Column('passcode', sa.String(), nullable=False),
         sa.Column('version', sa.Integer(), nullable=False),
+        sa.Column('is_enabled', sa.Boolean(), nullable=False),
+        sa.Column('instructions', sa.Text(), nullable=False),
         sa.ForeignKeyConstraint(['regform_id'], ['event_registration.forms.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('regform_id'),
         schema='plugin_regform_passcode',

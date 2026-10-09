@@ -8,8 +8,9 @@
 from wtforms import IntegerField, PasswordField
 from wtforms.validators import InputRequired, NumberRange
 
-from indico.util.i18n import _
 from indico.web.forms.base import IndicoForm
+
+from indico_regform_passcode import _
 
 
 class SettingsForm(IndicoForm):

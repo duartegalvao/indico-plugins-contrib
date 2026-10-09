@@ -13,6 +13,7 @@ from indico.modules.events.features.util import set_feature_enabled
 from indico.modules.events.models.events import EventType
 from indico.util.date_time import now_utc
 
+from indico_regform_passcode.models.passcodes import RegistrationFormPasscode
 from indico_regform_passcode.plugin import RegformPasscodePlugin
 
 
@@ -22,7 +23,61 @@ def logged_in_user(dummy_user, test_client):
         sess.set_session_user(dummy_user)
 
 
+@pytest.fixture
+def configured_regform(db, dummy_regform):
+    config = RegistrationFormPasscode(regform=dummy_regform, passcode='guest-code')
+    db.session.add(config)
+    db.session.flush()
+    return config
+
+
+class TestPasscodeConfiguration:
+    @pytest.mark.usefixtures('logged_in_user')
+    def test_form_without_passcode_configuration_is_accessible(self, dummy_regform, test_client):
+        set_feature_enabled(dummy_regform.event, 'registration', True)
+        dummy_regform.require_login = True
+        dummy_regform.start_dt = now_utc() - timedelta(days=1)
+        response = test_client.get(f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/')
+        assert response.status_code == 200
+        assert b'id="registration-form-submission-container"' in response.data
+
+    @pytest.mark.usefixtures('logged_in_user')
+    @pytest.mark.parametrize('is_enabled', (False, True))
+    def test_passcode_configuration_controls_gate(self, db, dummy_regform, test_client, is_enabled):
+        set_feature_enabled(dummy_regform.event, 'registration', True)
+        dummy_regform.require_login = True
+        dummy_regform.start_dt = now_utc() - timedelta(days=1)
+        db.session.add(RegistrationFormPasscode(
+            regform=dummy_regform, passcode='guest-code', is_enabled=is_enabled,
+            instructions='<p>Check <strong>your invitation</strong>.</p><img src="x" onerror="alert(1)">',
+        ))
+        db.session.flush()
+        response = test_client.get(f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/')
+        assert response.status_code == 200
+        if is_enabled:
+            assert b'id="regform-passcode"' in response.data
+            assert b'<strong>your invitation</strong>' in response.data
+            assert b'onerror=' not in response.data
+        else:
+            assert b'id="registration-form-submission-container"' in response.data
+
+
+@pytest.mark.usefixtures('configured_regform')
 class TestRegformPasscodePlugin:
+    @pytest.mark.usefixtures('logged_in_user')
+    def test_old_grant_version_is_rejected(self, dummy_regform, test_client, configured_regform):
+        set_feature_enabled(dummy_regform.event, 'registration', True)
+        dummy_regform.require_login = True
+        dummy_regform.start_dt = now_utc() - timedelta(days=1)
+        url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
+        test_client.get(url)
+        with test_client.session_transaction() as sess:
+            csrf_token = sess['_csrf_token']
+        assert test_client.post(url + 'passcode', data={'csrf_token': csrf_token}).status_code == 303
+        configured_regform.version += 1
+        response = test_client.get(url)
+        assert b'id="regform-passcode"' in response.data
+
     @pytest.mark.usefixtures('logged_in_user')
     def test_configured_duration_applies_to_new_grants(self, dummy_regform, test_client, freeze_time):
         set_feature_enabled(dummy_regform.event, 'registration', True)
@@ -39,7 +94,7 @@ class TestRegformPasscodePlugin:
         assert response.status_code == 303
         with test_client.session_transaction() as sess:
             assert (
-                sess['plugin_regform_passcode_grants'][str(dummy_regform.id)]
+                sess['plugin_regform_passcode_grants'][str(dummy_regform.id)]['expires']
                 == (granted_at + timedelta(minutes=15)).timestamp()
             )
 
@@ -170,11 +225,15 @@ class TestRegformPasscodePlugin:
         assert b'id="regform-passcode"' in response.data
 
     @pytest.mark.usefixtures('logged_in_user')
-    def test_unlock_is_scoped_and_does_not_renew_grant(self, dummy_regform, create_regform, test_client, freeze_time):
+    def test_unlock_is_scoped_and_does_not_renew_grant(
+        self, db, dummy_regform, create_regform, test_client, freeze_time
+    ):
         set_feature_enabled(dummy_regform.event, 'registration', True)
         dummy_regform.require_login = True
         dummy_regform.start_dt = now_utc() - timedelta(days=1)
         other_regform = create_regform(dummy_regform.event, start_dt=dummy_regform.start_dt, require_login=True)
+        db.session.add(RegistrationFormPasscode(regform=other_regform, passcode='another-code'))
+        db.session.flush()
         url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
         test_client.get(url)
         with test_client.session_transaction() as sess:

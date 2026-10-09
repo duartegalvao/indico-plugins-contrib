@@ -5,12 +5,17 @@
 # redistribute them and/or modify them under the terms of the;
 # MIT License see the LICENSE file for more details.
 
-from flask import flash, redirect, session
+from flask import flash, jsonify, redirect, session
 
+from indico.core.db import db
 from indico.modules.events.registration.controllers.display import RHRegistrationForm
-from indico.util.i18n import _
+from indico.modules.events.registration.controllers.management import RHManageRegFormBase
+from indico.web.args import use_rh_args
 
+from indico_regform_passcode import _
 from indico_regform_passcode.forms import PasscodeForm
+from indico_regform_passcode.models.passcodes import RegistrationFormPasscode
+from indico_regform_passcode.schemas import PasscodeSettingsArgs
 from indico_regform_passcode.util import get_regform_url, grant_passcode_access, requires_passcode, validate_passcode
 
 
@@ -27,3 +32,18 @@ class RHUnlockRegistrationForm(RHRegistrationForm):
             else:
                 flash(_('Invalid passcode'), 'error')
         return redirect(url, code=303)
+
+
+class RHManagePasscode(RHManageRegFormBase):
+    @use_rh_args(PasscodeSettingsArgs, location='json')
+    def _process_POST(self, data):
+        config = self.regform.passcode_config
+        invalidate_grants = data.pop('invalidate_grants')
+        if not config:
+            config = RegistrationFormPasscode(regform=self.regform)
+            db.session.add(config)
+        elif config.passcode != data['passcode'] and invalidate_grants:
+            config.version += 1
+        config.populate_from_dict(data)
+        flash(_('Passcode settings saved'), 'success')
+        return jsonify(success=True)
