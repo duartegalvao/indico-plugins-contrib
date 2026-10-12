@@ -8,6 +8,7 @@
 from flask import flash, jsonify, redirect, session
 
 from indico.core.db import db
+from indico.core.limiter import make_rate_limiter
 from indico.modules.events.registration.controllers.display import RHRegistrationForm
 from indico.modules.events.registration.controllers.management import RHManageRegFormBase
 from indico.web.args import use_rh_args
@@ -19,6 +20,9 @@ from indico_regform_passcode.schemas import PasscodeSettingsArgs
 from indico_regform_passcode.util import get_regform_url, grant_passcode_access, requires_passcode, validate_passcode
 
 
+passcode_rate_limiter = make_rate_limiter('regform-passcode', '5/minute', by_ip=False)
+
+
 class RHUnlockRegistrationForm(RHRegistrationForm):
     def _process_POST(self):
         url = get_regform_url(self.regform, 'event_registration.display_regform')
@@ -27,7 +31,9 @@ class RHUnlockRegistrationForm(RHRegistrationForm):
 
         form = PasscodeForm()
         if form.validate_on_submit():
-            if validate_passcode(self.regform, form.passcode.data):
+            if not passcode_rate_limiter.hit(session.user.id, self.regform.id):
+                flash(_('Too many passcode attempts. Please try again in a minute.'), 'error')
+            elif validate_passcode(self.regform, form.passcode.data):
                 grant_passcode_access(self.regform)
             else:
                 flash(_('Invalid passcode'), 'error')

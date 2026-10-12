@@ -69,6 +69,67 @@ class TestPasscodeConfiguration:
 @pytest.mark.usefixtures('configured_regform')
 class TestRegformPasscodePlugin:
     @pytest.mark.usefixtures('logged_in_user')
+    def test_unlock_attempt_limit(self, dummy_regform, test_client):
+        set_feature_enabled(dummy_regform.event, 'registration', True)
+        dummy_regform.require_login = True
+        dummy_regform.start_dt = now_utc() - timedelta(days=1)
+        url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
+        test_client.get(url)
+        with test_client.session_transaction() as sess:
+            csrf_token = sess['_csrf_token']
+        for _attempt in range(5):
+            response = test_client.post(url + 'passcode', data={'csrf_token': csrf_token, 'passcode': 'wrong-code'})
+            assert response.status_code == 303
+        response = test_client.post(url + 'passcode', data={'csrf_token': csrf_token, 'passcode': 'guest-code'})
+        assert response.status_code == 303
+        response = test_client.get(url)
+        assert b'Too many passcode attempts. Please try again in a minute.' in response.data
+        assert b'id="regform-passcode"' in response.data
+        with test_client.session_transaction() as sess:
+            assert not sess.get('plugin_regform_passcode_grants')
+
+    @pytest.mark.usefixtures('logged_in_user')
+    @pytest.mark.parametrize('change', ('ip', 'user', 'form'))
+    def test_unlock_limit_scope(self, db, dummy_regform, dummy_user, create_user, create_regform, test_client, change):
+        set_feature_enabled(dummy_regform.event, 'registration', True)
+        dummy_regform.require_login = True
+        dummy_regform.start_dt = now_utc() - timedelta(days=1)
+        url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
+        test_client.get(url)
+        with test_client.session_transaction() as sess:
+            csrf_token = sess['_csrf_token']
+        for _attempt in range(5):
+            assert (
+                test_client.post(
+                    url + 'passcode', data={'csrf_token': csrf_token, 'passcode': 'wrong-code'}
+                ).status_code
+                == 303
+            )
+        user = create_user(1338) if change == 'user' else dummy_user
+        with test_client.session_transaction() as sess:
+            sess.set_session_user(user)
+        if change == 'form':
+            regform = create_regform(dummy_regform.event, require_login=True, start_dt=dummy_regform.start_dt)
+            db.session.add(RegistrationFormPasscode(regform=regform, passcode='guest-code'))
+            db.session.flush()
+            url = f'/event/{regform.event_id}/registrations/{regform.id}/'
+        test_client.get(url)
+        with test_client.session_transaction() as sess:
+            csrf_token = sess['_csrf_token']
+        response = test_client.post(
+            url + 'passcode',
+            data={'csrf_token': csrf_token, 'passcode': 'guest-code'},
+            environ_overrides={'REMOTE_ADDR': '192.0.2.1'} if change == 'ip' else {},
+        )
+        assert response.status_code == 303
+        response = test_client.get(url)
+        if change == 'ip':
+            assert b'Too many passcode attempts' in response.data
+            assert b'id="regform-passcode"' in response.data
+        else:
+            assert b'id="registration-form-submission-container"' in response.data
+
+    @pytest.mark.usefixtures('logged_in_user')
     @pytest.mark.parametrize(
         ('saved_code', 'submitted_code', 'valid'),
         (

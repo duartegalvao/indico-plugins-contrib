@@ -7,10 +7,16 @@
 
 import pytest
 
+from indico.core.limiter import limiter
 from indico.core.plugins import IndicoPlugin
 
 
 pytest_plugins = ['indico.modules.events.registration.testing.fixtures']
+
+
+@pytest.fixture(autouse=True)
+def clear_rate_limits(app):
+    limiter.limiter.storage.reset()
 
 
 @pytest.fixture(autouse=True)

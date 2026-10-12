@@ -59,10 +59,12 @@ class RegformPasscodePlugin(IndicoPlugin):
         if not requires_passcode(rh.regform, session.user, rh.registration):
             return
         if request.method == 'POST':
-            raise ExpectedError(_(
-                'Your access to this registration form has expired or been revoked. '
-                'Reload the page and enter the passcode again before submitting your registration.'
-            ))
+            raise ExpectedError(
+                _(
+                    'Your access to this registration form has expired or been revoked. '
+                    'Reload the page and enter the passcode again before submitting your registration.'
+                )
+            )
         view_class = (
             WPRegformPasscodeConference if rh.event.type_ == EventType.conference else WPRegformPasscodeSimpleEvent
         )
