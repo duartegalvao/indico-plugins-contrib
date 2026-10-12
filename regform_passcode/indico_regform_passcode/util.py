@@ -6,6 +6,7 @@
 # MIT License see the LICENSE file for more details.
 
 from datetime import timedelta
+from hmac import compare_digest
 
 from flask import request, session
 from flask_pluginengine import current_plugin
@@ -20,8 +21,8 @@ def get_regform_url(regform, endpoint):
 
 
 def validate_passcode(regform, passcode):
-    """Accept any passcode until real validation is implemented."""
-    return True
+    passcode = (passcode or '').strip()
+    return bool(passcode) and compare_digest(regform.passcode_config.passcode.strip().encode(), passcode.encode())
 
 
 def requires_passcode(regform, user, registration):
@@ -33,13 +34,18 @@ def requires_passcode(regform, user, registration):
     if not config or not config.is_enabled:
         return False
     grant = session.get('plugin_regform_passcode_grants', {}).get(str(regform.id))
-    return (not isinstance(grant, dict) or grant.get('version') != config.version
-            or grant.get('expires', 0) < now_utc().timestamp())
+    return (
+        not isinstance(grant, dict)
+        or grant.get('version') != config.version
+        or grant.get('expires', 0) < now_utc().timestamp()
+    )
 
 
 def grant_passcode_access(regform):
     grants = session.get('plugin_regform_passcode_grants', {}).copy()
     duration = timedelta(minutes=current_plugin.settings.get('grant_duration'))
-    grants[str(regform.id)] = {'expires': (now_utc() + duration).timestamp(),
-                              'version': regform.passcode_config.version}
+    grants[str(regform.id)] = {
+        'expires': (now_utc() + duration).timestamp(),
+        'version': regform.passcode_config.version,
+    }
     session['plugin_regform_passcode_grants'] = grants

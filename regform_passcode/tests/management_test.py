@@ -37,10 +37,16 @@ class TestPasscodeManagement:
         data = json.loads(fromstring(response.data).find('.//ind-plugin-regform-passcode-settings').get('settings'))
         assert data == {'is_enabled': False, 'passcode': '', 'instructions': ''}
         instructions = '<p>Find the code in your email.</p><script>alert(1)</script>'
-        response = test_client.post(url, headers=registration_manager, json={
-            'is_enabled': True, 'passcode': 'guest-code', 'instructions': instructions,
-            'invalidate_grants': True,
-        })
+        response = test_client.post(
+            url,
+            headers=registration_manager,
+            json={
+                'is_enabled': True,
+                'passcode': 'guest-code',
+                'instructions': instructions,
+                'invalidate_grants': True,
+            },
+        )
         assert response.status_code == 200
         assert response.is_json
         config = dummy_regform.passcode_config
@@ -68,15 +74,26 @@ class TestPasscodeManagement:
     ):
         dummy_regform.require_login = True
         if existing_config:
-            db.session.add(RegistrationFormPasscode(
-                regform=dummy_regform, passcode='saved-code', is_enabled=False, version=3,
-            ))
+            db.session.add(
+                RegistrationFormPasscode(
+                    regform=dummy_regform,
+                    passcode='saved-code',
+                    is_enabled=False,
+                    version=3,
+                )
+            )
             db.session.flush()
         url = f'/event/{dummy_regform.event_id}/manage/registration/{dummy_regform.id}/passcode'
-        response = test_client.post(url, headers=registration_manager, json={
-            'instructions': '<p>Read your invitation email.</p>',
-            'is_enabled': False, 'passcode': 'ignored-code', 'invalidate_grants': True,
-        })
+        response = test_client.post(
+            url,
+            headers=registration_manager,
+            json={
+                'instructions': '<p>Read your invitation email.</p>',
+                'is_enabled': False,
+                'passcode': 'ignored-code',
+                'invalidate_grants': True,
+            },
+        )
         assert response.status_code == 200
         config = dummy_regform.passcode_config
         assert config.instructions == '<p>Read your invitation email.</p>'
@@ -95,9 +112,15 @@ class TestPasscodeManagement:
         assert response.status_code == 200
         data = json.loads(fromstring(response.data).find('.//ind-plugin-regform-passcode-settings').get('settings'))
         assert not data['is_enabled']
-        response = test_client.post(url, headers=registration_manager, json={
-            'is_enabled': True, 'passcode': passcode, 'instructions': '<p>Read your email.</p>',
-        })
+        response = test_client.post(
+            url,
+            headers=registration_manager,
+            json={
+                'is_enabled': True,
+                'passcode': passcode,
+                'instructions': '<p>Read your email.</p>',
+            },
+        )
         assert response.status_code == 422
         if require_login:
             assert 'passcode' in response.json['webargs_errors']
@@ -112,19 +135,30 @@ class TestPasscodeManagement:
         db.session.add(config)
         db.session.flush()
         url = f'/event/{dummy_regform.event_id}/manage/registration/{dummy_regform.id}/passcode'
-        response = test_client.post(url, headers=registration_manager, json={
-            'is_enabled': True, 'passcode': 'new-code', 'invalidate_grants': True,
-            'instructions': '<p>Read your email.</p>',
-        })
+        response = test_client.post(
+            url,
+            headers=registration_manager,
+            json={
+                'is_enabled': True,
+                'passcode': 'new-code',
+                'invalidate_grants': True,
+                'instructions': '<p>Read your email.</p>',
+            },
+        )
         assert response.status_code == 422
         assert config.is_enabled
         assert config.passcode == 'saved-code'
         assert config.version == 3
         assert config.instructions == ''
 
-    @pytest.mark.parametrize(('change_code', 'invalidate', 'version'), (
-        (False, True, 1), (True, False, 1), (True, True, 2),
-    ))
+    @pytest.mark.parametrize(
+        ('change_code', 'invalidate', 'version'),
+        (
+            (False, True, 1),
+            (True, False, 1),
+            (True, True, 2),
+        ),
+    )
     def test_change_passcode(
         self, db, dummy_regform, test_client, registration_manager, change_code, invalidate, version
     ):
@@ -133,8 +167,12 @@ class TestPasscodeManagement:
         db.session.add(config)
         db.session.flush()
         url = f'/event/{dummy_regform.event_id}/manage/registration/{dummy_regform.id}/passcode'
-        data = {'is_enabled': True, 'passcode': 'new-code' if change_code else 'old-code',
-                'instructions': '<p>Updated instructions</p>', 'invalidate_grants': invalidate}
+        data = {
+            'is_enabled': True,
+            'passcode': 'new-code' if change_code else 'old-code',
+            'instructions': '<p>Updated instructions</p>',
+            'invalidate_grants': invalidate,
+        }
         response = test_client.post(url, headers=registration_manager, json=data)
         assert response.status_code == 200
         assert config.version == version

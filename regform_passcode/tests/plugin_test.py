@@ -47,10 +47,14 @@ class TestPasscodeConfiguration:
         set_feature_enabled(dummy_regform.event, 'registration', True)
         dummy_regform.require_login = True
         dummy_regform.start_dt = now_utc() - timedelta(days=1)
-        db.session.add(RegistrationFormPasscode(
-            regform=dummy_regform, passcode='guest-code', is_enabled=is_enabled,
-            instructions='<p>Check <strong>your invitation</strong>.</p><img src="x" onerror="alert(1)">',
-        ))
+        db.session.add(
+            RegistrationFormPasscode(
+                regform=dummy_regform,
+                passcode='guest-code',
+                is_enabled=is_enabled,
+                instructions='<p>Check <strong>your invitation</strong>.</p><img src="x" onerror="alert(1)">',
+            )
+        )
         db.session.flush()
         response = test_client.get(f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/')
         assert response.status_code == 200
@@ -65,6 +69,48 @@ class TestPasscodeConfiguration:
 @pytest.mark.usefixtures('configured_regform')
 class TestRegformPasscodePlugin:
     @pytest.mark.usefixtures('logged_in_user')
+    @pytest.mark.parametrize(
+        ('saved_code', 'submitted_code', 'valid'),
+        (
+            ('guest-code', None, False),
+            ('guest-code', '', False),
+            ('guest-code', 'wrong-code', False),
+            ('guest-code', 'GUEST-code', False),
+            ('guest-code', ' guest-code ', True),
+            (' guest-code ', 'guest-code', True),
+            ('guest code', 'guestcode', False),
+            ('guest-code', 'guest-code', True),
+            ('café-🔑', 'cafe-🔑', False),
+            ('café-🔑', 'café-🔑', True),
+        ),
+    )
+    def test_unlock_validates_passcode(
+        self, dummy_regform, test_client, configured_regform, saved_code, submitted_code, valid
+    ):
+        set_feature_enabled(dummy_regform.event, 'registration', True)
+        dummy_regform.require_login = True
+        dummy_regform.start_dt = now_utc() - timedelta(days=1)
+        configured_regform.passcode = saved_code
+        url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
+        test_client.get(url)
+        with test_client.session_transaction() as sess:
+            data = {'csrf_token': sess['_csrf_token']}
+        if submitted_code is not None:
+            data['passcode'] = submitted_code
+
+        response = test_client.post(url + 'passcode', data=data)
+        assert response.status_code == 303
+        assert response.location == url
+        with test_client.session_transaction() as sess:
+            assert (str(dummy_regform.id) in sess.get('plugin_regform_passcode_grants', {})) == valid
+        response = test_client.get(url)
+        if valid:
+            assert b'id="registration-form-submission-container"' in response.data
+        else:
+            assert b'id="regform-passcode"' in response.data
+            assert b'Invalid passcode' in response.data
+
+    @pytest.mark.usefixtures('logged_in_user')
     def test_old_grant_version_is_rejected(self, dummy_regform, test_client, configured_regform):
         set_feature_enabled(dummy_regform.event, 'registration', True)
         dummy_regform.require_login = True
@@ -73,7 +119,16 @@ class TestRegformPasscodePlugin:
         test_client.get(url)
         with test_client.session_transaction() as sess:
             csrf_token = sess['_csrf_token']
-        assert test_client.post(url + 'passcode', data={'csrf_token': csrf_token}).status_code == 303
+        assert (
+            test_client.post(
+                url + 'passcode',
+                data={
+                    'csrf_token': csrf_token,
+                    'passcode': 'guest-code',
+                },
+            ).status_code
+            == 303
+        )
         configured_regform.version += 1
         response = test_client.get(url)
         assert b'id="regform-passcode"' in response.data
@@ -90,7 +145,7 @@ class TestRegformPasscodePlugin:
         test_client.get(url)
         with test_client.session_transaction() as sess:
             csrf_token = sess['_csrf_token']
-        response = test_client.post(url + 'passcode', data={'csrf_token': csrf_token})
+        response = test_client.post(url + 'passcode', data={'csrf_token': csrf_token, 'passcode': 'guest-code'})
         assert response.status_code == 303
         with test_client.session_transaction() as sess:
             assert (
@@ -101,7 +156,7 @@ class TestRegformPasscodePlugin:
         RegformPasscodePlugin.settings.set('grant_duration', 60)
         freeze_time(granted_at + timedelta(minutes=16))
         assert b'id="regform-passcode"' in test_client.get(url).data
-        response = test_client.post(url + 'passcode', data={'csrf_token': csrf_token})
+        response = test_client.post(url + 'passcode', data={'csrf_token': csrf_token, 'passcode': 'guest-code'})
         assert response.status_code == 303
         freeze_time(granted_at + timedelta(minutes=32))
         assert b'id="registration-form-submission-container"' in test_client.get(url).data
@@ -187,7 +242,14 @@ class TestRegformPasscodePlugin:
         assert csrf_token != '00000000-0000-0000-0000-000000000000'
         assert csrf_token.encode() in response.data
 
-        response = test_client.post(url + 'passcode', query_string=query, data={'csrf_token': csrf_token})
+        response = test_client.post(
+            url + 'passcode',
+            query_string=query,
+            data={
+                'csrf_token': csrf_token,
+                'passcode': 'guest-code',
+            },
+        )
         assert response.status_code == 303
         assert response.location == url + (f'?form_token={dummy_regform.uuid}' if private else '')
 
@@ -238,7 +300,7 @@ class TestRegformPasscodePlugin:
         test_client.get(url)
         with test_client.session_transaction() as sess:
             csrf_token = sess['_csrf_token']
-        response = test_client.post(url + 'passcode', data={'csrf_token': csrf_token})
+        response = test_client.post(url + 'passcode', data={'csrf_token': csrf_token, 'passcode': 'guest-code'})
         assert response.status_code == 303
         assert b'id="registration-form-submission-container"' in test_client.get(url).data
         with test_client.session_transaction() as sess:

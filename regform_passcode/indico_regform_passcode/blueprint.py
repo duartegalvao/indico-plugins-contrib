@@ -14,5 +14,4 @@ blueprint = IndicoPluginBlueprint('regform_passcode', __name__, url_prefix='/eve
 blueprint.add_url_rule(
     '/registrations/<int:reg_form_id>/passcode', 'unlock', RHUnlockRegistrationForm, methods=('POST',)
 )
-blueprint.add_url_rule('/manage/registration/<int:reg_form_id>/passcode', 'manage', RHManagePasscode,
-                       methods=('POST',))
+blueprint.add_url_rule('/manage/registration/<int:reg_form_id>/passcode', 'manage', RHManagePasscode, methods=('POST',))
