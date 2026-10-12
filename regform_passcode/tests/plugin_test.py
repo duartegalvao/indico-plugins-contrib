@@ -134,6 +134,50 @@ class TestRegformPasscodePlugin:
         assert b'id="regform-passcode"' in response.data
 
     @pytest.mark.usefixtures('logged_in_user')
+    @pytest.mark.parametrize('invalidated', ('expired', 'revoked'))
+    @pytest.mark.parametrize('private', (False, True))
+    def test_invalidated_grant_blocks_submission(
+        self, dummy_regform, dummy_user, test_client, configured_regform, freeze_time, invalidated, private
+    ):
+        set_feature_enabled(dummy_regform.event, 'registration', True)
+        dummy_regform.require_login = True
+        dummy_regform.start_dt = now_utc() - timedelta(days=1)
+        dummy_regform.private = private
+        url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
+        query = {'form_token': str(dummy_regform.uuid)} if private else {}
+        test_client.get(url, query_string=query)
+        with test_client.session_transaction() as sess:
+            csrf_token = sess['_csrf_token']
+        response = test_client.post(
+            url + 'passcode', query_string=query, data={'csrf_token': csrf_token, 'passcode': 'guest-code'}
+        )
+        assert response.status_code == 303
+        assert b'id="registration-form-submission-container"' in test_client.get(url, query_string=query).data
+
+        if invalidated == 'expired':
+            freeze_time(now_utc() + timedelta(days=2))
+        else:
+            configured_regform.version += 1
+
+        response = test_client.post(
+            url,
+            query_string=query,
+            headers={'X-CSRF-Token': csrf_token},
+            json={
+                'email': dummy_user.email,
+                'first_name': dummy_user.first_name,
+                'last_name': dummy_user.last_name,
+            },
+        )
+        assert response.status_code == 418
+        assert response.json == {
+            'message': 'Your access to this registration form has expired or been revoked. '
+            'Reload the page and enter the passcode again before submitting your registration.'
+        }
+        assert not dummy_regform.registrations
+        assert b'id="regform-passcode"' in test_client.get(url, query_string=query).data
+
+    @pytest.mark.usefixtures('logged_in_user')
     def test_configured_duration_applies_to_new_grants(self, dummy_regform, test_client, freeze_time):
         set_feature_enabled(dummy_regform.event, 'registration', True)
         dummy_regform.require_login = True
@@ -169,6 +213,11 @@ class TestRegformPasscodePlugin:
         dummy_regform.require_login = True
         set_feature_enabled(dummy_regform.event, 'registration', True)
         response = test_client.open(f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/', method=method)
+        if method == 'POST':
+            assert response.status_code == 418
+            assert 'enter the passcode again' in response.json['message']
+            assert not dummy_regform.registrations
+            return
         assert response.status_code == 200
         assert b'id="regform-passcode"' in response.data
         assert dummy_regform.title.encode() in response.data

@@ -5,7 +5,7 @@
 # redistribute them and/or modify them under the terms of the;
 # MIT License see the LICENSE file for more details.
 
-from flask import session
+from flask import request, session
 from flask_pluginengine import render_plugin_template
 
 from indico.core import signals
@@ -13,7 +13,9 @@ from indico.core.plugins import IndicoPlugin
 from indico.modules.events.models.events import EventType
 from indico.modules.events.registration.controllers.display import RHRegistrationForm
 from indico.modules.events.registration.views import WPManageRegistration
+from indico.web.util import ExpectedError
 
+from indico_regform_passcode import _
 from indico_regform_passcode.blueprint import blueprint
 from indico_regform_passcode.forms import PasscodeForm, SettingsForm
 from indico_regform_passcode.util import get_regform_url, requires_passcode
@@ -56,6 +58,11 @@ class RegformPasscodePlugin(IndicoPlugin):
     def _require_passcode(self, sender, rh, **kwargs):
         if not requires_passcode(rh.regform, session.user, rh.registration):
             return
+        if request.method == 'POST':
+            raise ExpectedError(_(
+                'Your access to this registration form has expired or been revoked. '
+                'Reload the page and enter the passcode again before submitting your registration.'
+            ))
         view_class = (
             WPRegformPasscodeConference if rh.event.type_ == EventType.conference else WPRegformPasscodeSimpleEvent
         )
