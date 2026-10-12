@@ -351,6 +351,43 @@ class TestRegformPasscodePlugin:
         assert b'id="registration-form-submission-container"' not in response.data
         assert not dummy_regform.registrations
 
+    @pytest.mark.usefixtures('smtp', 'logged_in_user')
+    def test_another_registration_token_does_not_authorize_submission(
+        self, db, dummy_regform, dummy_user, create_user, create_registration, test_client
+    ):
+        set_feature_enabled(dummy_regform.event, 'registration', True)
+        dummy_regform.require_login = True
+        dummy_regform.start_dt = now_utc() - timedelta(days=1)
+        other_registration = create_registration(create_user(1338), dummy_regform)
+        db.session.add(other_registration)
+        db.session.flush()
+        url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
+        assert b'id="regform-passcode"' in test_client.get(url).data
+        with test_client.session_transaction() as sess:
+            csrf_token = sess['_csrf_token']
+        query = {'token': str(other_registration.uuid)}
+        data = {
+            'email': dummy_user.email,
+            'first_name': dummy_user.first_name,
+            'last_name': dummy_user.last_name,
+        }
+
+        response = test_client.post(url, query_string=query, headers={'X-CSRF-Token': csrf_token}, json=data)
+
+        assert response.status_code == 418
+        assert 'enter the passcode again' in response.json['message']
+        assert dummy_regform.get_registration(user=dummy_user) is None
+        assert dummy_regform.registrations == [other_registration]
+        assert b'Your registration has been completed' in test_client.get(url, query_string=query).data
+
+        response = test_client.post(
+            url + 'passcode', data={'csrf_token': csrf_token, 'passcode': 'guest-code'}
+        )
+        assert response.status_code == 303
+        response = test_client.post(url, query_string=query, headers={'X-CSRF-Token': csrf_token}, json=data)
+        assert response.status_code == 200
+        assert dummy_regform.get_registration(user=dummy_user) is not None
+
     def test_existing_registration_is_accessible(self, dummy_reg, test_client):
         dummy_reg.registration_form.require_login = True
         set_feature_enabled(dummy_reg.registration_form.event, 'registration', True)
