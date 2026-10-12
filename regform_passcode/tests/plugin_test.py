@@ -11,6 +11,7 @@ import pytest
 
 from indico.modules.events.features.util import set_feature_enabled
 from indico.modules.events.models.events import EventType
+from indico.modules.events.registration.models.invitations import RegistrationInvitation
 from indico.util.date_time import now_utc
 
 from indico_regform_passcode.models.passcodes import RegistrationFormPasscode
@@ -68,6 +69,70 @@ class TestPasscodeConfiguration:
 
 @pytest.mark.usefixtures('configured_regform')
 class TestRegformPasscodePlugin:
+    @pytest.mark.usefixtures('logged_in_user')
+    @pytest.mark.parametrize('availability', ('unopened', 'closed', 'full', 'purged'))
+    def test_unavailable_form_does_not_prompt_for_passcode(
+        self, db, dummy_regform, create_user, create_registration, test_client, availability
+    ):
+        set_feature_enabled(dummy_regform.event, 'registration', True)
+        dummy_regform.require_login = True
+        dummy_regform.start_dt = now_utc() - timedelta(days=2)
+        if availability == 'unopened':
+            dummy_regform.start_dt = now_utc() + timedelta(days=1)
+            message = b'The registration period has not started yet.'
+        elif availability == 'closed':
+            dummy_regform.end_dt = now_utc() - timedelta(days=1)
+            message = b'The registration period has passed.'
+        elif availability == 'full':
+            dummy_regform.registration_limit = 1
+            db.session.add(create_registration(create_user(1338), dummy_regform))
+            message = b'There are no more places available.'
+        else:
+            dummy_regform.is_purged = True
+            message = b'Registration is disabled due to an expired retention period'
+        db.session.flush()
+
+        response = test_client.get(f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/')
+
+        assert response.status_code == 200
+        assert message in response.data
+        assert b'id="regform-passcode"' not in response.data
+        assert b'id="registration-form-submission-container"' not in response.data
+
+    @pytest.mark.usefixtures('logged_in_user')
+    @pytest.mark.parametrize('availability', ('unopened', 'closed', 'full'))
+    def test_invitation_to_inactive_form_still_requires_passcode(
+        self, db, dummy_regform, dummy_user, create_user, create_registration, test_client, availability
+    ):
+        set_feature_enabled(dummy_regform.event, 'registration', True)
+        dummy_regform.require_login = True
+        dummy_regform.start_dt = now_utc() - timedelta(days=2)
+        if availability == 'unopened':
+            dummy_regform.start_dt = now_utc() + timedelta(days=1)
+        elif availability == 'closed':
+            dummy_regform.end_dt = now_utc() - timedelta(days=1)
+        else:
+            dummy_regform.registration_limit = 1
+            db.session.add(create_registration(create_user(1338), dummy_regform))
+        invitation = RegistrationInvitation(
+            registration_form=dummy_regform,
+            email=dummy_user.email,
+            first_name=dummy_user.first_name,
+            last_name=dummy_user.last_name,
+            affiliation='',
+        )
+        db.session.add(invitation)
+        db.session.flush()
+
+        response = test_client.get(
+            f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/',
+            query_string={'invitation': str(invitation.uuid)},
+        )
+
+        assert response.status_code == 200
+        assert b'id="regform-passcode"' in response.data
+        assert b'id="registration-form-submission-container"' not in response.data
+
     @pytest.mark.usefixtures('logged_in_user')
     def test_unlock_attempt_limit(self, dummy_regform, test_client):
         set_feature_enabled(dummy_regform.event, 'registration', True)
@@ -272,6 +337,7 @@ class TestRegformPasscodePlugin:
     def test_new_registration_is_blocked(self, dummy_regform, test_client, method, event_type):
         dummy_regform.event.type_ = event_type
         dummy_regform.require_login = True
+        dummy_regform.start_dt = now_utc() - timedelta(days=1)
         set_feature_enabled(dummy_regform.event, 'registration', True)
         response = test_client.open(f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/', method=method)
         if method == 'POST':
@@ -388,6 +454,7 @@ class TestRegformPasscodePlugin:
     def test_unlock_requires_csrf(self, dummy_regform, test_client, csrf_token):
         set_feature_enabled(dummy_regform.event, 'registration', True)
         dummy_regform.require_login = True
+        dummy_regform.start_dt = now_utc() - timedelta(days=1)
         url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
         test_client.get(url)
 
@@ -452,6 +519,7 @@ class TestRegformPasscodePlugin:
     def test_unlock_requires_matching_event(self, dummy_regform, create_event, test_client):
         set_feature_enabled(dummy_regform.event, 'registration', True)
         dummy_regform.require_login = True
+        dummy_regform.start_dt = now_utc() - timedelta(days=1)
         other_event = create_event()
         set_feature_enabled(other_event, 'registration', True)
         url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
