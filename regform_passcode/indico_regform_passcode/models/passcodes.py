@@ -37,3 +37,6 @@ class RegistrationFormPasscode(db.Model):
 
     def __repr__(self):
         return format_repr(self, 'regform_id')
+
+    def invalidate_grants(self):
+        self.version = RegistrationFormPasscode.version + 1

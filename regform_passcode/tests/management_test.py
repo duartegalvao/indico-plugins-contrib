@@ -177,3 +177,23 @@ class TestPasscodeManagement:
         assert response.status_code == 200
         assert config.version == version
         assert config.instructions == '<p>Updated instructions</p>'
+
+    def test_change_passcode_with_stale_version(self, db, dummy_regform, test_client, registration_manager):
+        dummy_regform.require_login = True
+        config = RegistrationFormPasscode(regform=dummy_regform, passcode='old-code')
+        db.session.add(config)
+        db.session.flush()
+        RegistrationFormPasscode.query.filter_by(regform_id=dummy_regform.id).update(
+            {'passcode': 'first-code', 'version': 2}, synchronize_session=False
+        )
+        assert config.version == 1
+        url = f'/event/{dummy_regform.event_id}/manage/registration/{dummy_regform.id}/passcode'
+        response = test_client.post(
+            url,
+            headers=registration_manager,
+            json={'is_enabled': True, 'passcode': 'second-code', 'invalidate_grants': True},
+        )
+        assert response.status_code == 200
+        db.session.refresh(config)
+        assert config.passcode == 'second-code'
+        assert config.version == 3

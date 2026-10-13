@@ -380,9 +380,7 @@ class TestRegformPasscodePlugin:
         assert dummy_regform.registrations == [other_registration]
         assert b'Your registration has been completed' in test_client.get(url, query_string=query).data
 
-        response = test_client.post(
-            url + 'passcode', data={'csrf_token': csrf_token, 'passcode': 'guest-code'}
-        )
+        response = test_client.post(url + 'passcode', data={'csrf_token': csrf_token, 'passcode': 'guest-code'})
         assert response.status_code == 303
         response = test_client.post(url, query_string=query, headers={'X-CSRF-Token': csrf_token}, json=data)
         assert response.status_code == 200

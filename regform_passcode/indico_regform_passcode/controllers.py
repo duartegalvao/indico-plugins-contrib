@@ -49,7 +49,7 @@ class RHManagePasscode(RHManageRegFormBase):
             config = RegistrationFormPasscode(regform=self.regform)
             db.session.add(config)
         elif config.passcode != data['passcode'] and invalidate_grants:
-            config.version += 1
+            config.invalidate_grants()
         config.populate_from_dict(data)
         flash(_('Passcode settings saved'), 'success')
         return jsonify(success=True)
