@@ -184,7 +184,7 @@ class TestInvitations:
 
         count = test_client.post(_recipient_count_url(dummy_regform), json=source)
         assert count.status_code == 200
-        assert count.json == {'recipient_count': 2}
+        assert count.json == {'recipient_count': 2, 'unnamed_recipient_count': 1}
         resp = test_client.post(
             _url(dummy_regform),
             json={
@@ -591,6 +591,7 @@ class TestInvitations:
         }
 
     @pytest.mark.usefixtures('no_csrf_check')
+    @pytest.mark.parametrize('recipient_source', ('focal_points', 'contacts', 'both'))
     def test_affiliation_catalog_invite_recipient_count_deduplicates_sources(
         self,
         test_client,
@@ -599,6 +600,7 @@ class TestInvitations:
         dummy_user,
         create_user,
         create_event_catalog,
+        recipient_source,
     ):
         dummy_regform.event.update_principal(dummy_user, full_access=True)
         _login(test_client, dummy_user)
@@ -622,14 +624,17 @@ class TestInvitations:
         resp = test_client.post(
             _recipient_count_url(dummy_regform),
             json={
-                'recipient_source': 'both',
+                'recipient_source': recipient_source,
                 'contact_lists': ['Operations'],
                 'include_unnamed_lists': False,
             },
         )
 
         assert resp.status_code == 200
-        assert resp.json == {'recipient_count': 2}
+        assert resp.json == {
+            'recipient_count': 1 if recipient_source == 'focal_points' else 2,
+            'unnamed_recipient_count': 0 if recipient_source == 'focal_points' else 1,
+        }
 
     @pytest.mark.usefixtures('no_csrf_check')
     def test_affiliation_catalog_invite_rejects_unknown_contact_list(
@@ -712,7 +717,7 @@ class TestInvitations:
         )
 
         assert resp.status_code == 200
-        assert resp.json == {'recipient_count': 0}
+        assert resp.json == {'recipient_count': 0, 'unnamed_recipient_count': 0}
 
     @pytest.mark.usefixtures('no_csrf_check')
     @pytest.mark.parametrize('recipient_source', ('contacts', 'both'))

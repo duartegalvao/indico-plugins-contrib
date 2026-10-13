@@ -33,6 +33,10 @@ interface AffiliationCatalogInvitationValues {
   include_unnamed_lists: boolean;
 }
 
+interface InvitationFormValues extends AffiliationCatalogInvitationValues {
+  body: string;
+}
+
 interface AffiliationCatalogMetadata {
   affiliationCount: number;
   focalPointCount: number;
@@ -42,6 +46,7 @@ interface AffiliationCatalogMetadata {
 
 interface RecipientCountData {
   recipientCount: number;
+  unnamedRecipientCount: number;
 }
 
 interface InvitationModeContext {
@@ -60,14 +65,15 @@ interface AffiliationCatalogInvitationMode {
 }
 
 const AffiliationCatalogFields = ({eventId, regformId}: AffiliationCatalogFieldsProps) => {
-  const form = useForm<AffiliationCatalogInvitationValues>();
+  const form = useForm<InvitationFormValues>();
   const {
     values: {
+      body = '',
       recipient_source: recipientSource = null,
       contact_lists: contactLists = [],
       include_unnamed_lists: includeUnnamedLists = false,
     },
-  } = useFormState<AffiliationCatalogInvitationValues>({
+  } = useFormState<InvitationFormValues>({
     subscription: {values: true},
   });
   const {data: metadataData, loading} = useIndicoAxios(
@@ -91,7 +97,8 @@ const AffiliationCatalogFields = ({eventId, regformId}: AffiliationCatalogFields
     [contactLists, eventId, includeUnnamedLists, recipientSource, regformId]
   );
   const hasUnnamedContactLists = data?.contactListOptions.some(({name}) => name === '');
-  const namedContactLists = data?.contactListOptions.filter(({name}) => name).map(({name}) => name) ?? [];
+  const namedContactLists =
+    data?.contactListOptions.filter(({name}) => name).map(({name}) => name) ?? [];
   const hasContactLists = !!data?.contactListOptions.length;
   const hasFocalPoints = !!(data && data.focalPointCount);
   const includesContacts = recipientSource === 'contacts' || recipientSource === 'both';
@@ -131,6 +138,17 @@ const AffiliationCatalogFields = ({eventId, regformId}: AffiliationCatalogFields
   const recipientCountData = recipientCountResponse as RecipientCountData | null;
   const previousRecipientCountConfig = useRef(recipientCountConfig);
   const recipientCountConfigChanged = previousRecipientCountConfig.current !== recipientCountConfig;
+
+  const unnamedRecipientCount =
+    recipientSource &&
+    !showNoContactsError &&
+    !recipientCountLoading &&
+    !recipientCountError &&
+    !recipientCountConfigChanged
+      ? (recipientCountData?.unnamedRecipientCount ?? 0)
+      : 0;
+  const showUnnamedRecipientsWarning =
+    unnamedRecipientCount > 0 && (body.includes('{first_name}') || body.includes('{last_name}'));
 
   useEffect(() => {
     if (previousRecipientCountConfig.current !== recipientCountConfig) {
@@ -252,6 +270,26 @@ const AffiliationCatalogFields = ({eventId, regformId}: AffiliationCatalogFields
             />
           )}
         </Segment>
+      )}
+      {showUnnamedRecipientsWarning && (
+        <Message warning icon visible>
+          <Icon name="warning sign" />
+          <Message.Content>
+            <PluralTranslate as={Message.Header} count={unnamedRecipientCount}>
+              <Singular>
+                <Param name="count" value={unnamedRecipientCount} /> recipient has no name.
+              </Singular>
+              <Plural>
+                <Param name="count" value={unnamedRecipientCount} /> recipients have no name.
+              </Plural>
+            </PluralTranslate>
+            <Translate as="p">
+              <Param name="first_name" value="{first_name}" /> and{' '}
+              <Param name="last_name" value="{last_name}" /> will be empty in their invitations.
+              Adjust the message accordingly.
+            </Translate>
+          </Message.Content>
+        </Message>
       )}
     </>
   );

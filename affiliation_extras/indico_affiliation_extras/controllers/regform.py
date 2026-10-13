@@ -363,7 +363,10 @@ class RHAffiliationCatalogInviteRecipientCount(RHManageRegFormBase):
             contact_lists=contact_lists,
             include_unnamed_lists=include_unnamed_lists,
         )
-        return jsonify(recipient_count=len(recipients))
+        return jsonify(
+            recipient_count=len(recipients),
+            unnamed_recipient_count=sum(not r.first_name and not r.last_name for r in recipients),
+        )
 
 
 class RHInviteAffiliationCatalog(RHInviteUsersBase):
