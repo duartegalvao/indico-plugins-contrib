@@ -59,7 +59,10 @@ class RegformPasscodePlugin(IndicoPlugin):
         # Use rh._can_register() once core's GET template enforces capacity limits for invitees.
         if rh.regform.is_purged or (not rh.regform.is_active and rh.invitation is None):
             return
-        registration = rh.registration if request.method == 'GET' else None
+        if request.method == 'GET':
+            registration = rh.registration
+        else:
+            registration = rh.regform.get_registration(user=session.user) if session.user else None
         if not requires_passcode(rh.regform, session.user, registration):
             return
         if request.method == 'POST':

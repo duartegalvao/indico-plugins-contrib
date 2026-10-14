@@ -385,6 +385,47 @@ class TestRegformPasscodePlugin:
         assert response.status_code == 200
         assert dummy_regform.get_registration(user=dummy_user) is not None
 
+    @pytest.mark.usefixtures('logged_in_user')
+    def test_existing_registration_submission_preserves_core_error(self, dummy_reg, test_client):
+        regform = dummy_reg.registration_form
+        regform.require_login = True
+        regform.start_dt = now_utc() - timedelta(days=1)
+        set_feature_enabled(regform.event, 'registration', True)
+        url = f'/event/{regform.event_id}/registrations/{regform.id}/'
+        test_client.get(url)
+        with test_client.session_transaction() as sess:
+            csrf_token = sess['_csrf_token']
+            assert 'plugin_regform_passcode_grants' not in sess
+
+        response = test_client.post(url, headers={'X-CSRF-Token': csrf_token}, json={})
+
+        assert response.status_code == 418
+        assert response.json['message'] == 'You cannot register for this event'
+        assert regform.registrations == [dummy_reg]
+
+    @pytest.mark.usefixtures('smtp')
+    def test_anonymous_submission_without_login_requirement(self, dummy_regform, dummy_user, test_client):
+        dummy_regform.require_login = False
+        dummy_regform.require_captcha = False
+        dummy_regform.start_dt = now_utc() - timedelta(days=1)
+        set_feature_enabled(dummy_regform.event, 'registration', True)
+        url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
+
+        response = test_client.post(
+            url,
+            headers={'X-CSRF-Token': '00000000-0000-0000-0000-000000000000'},
+            json={
+                'email': dummy_user.email,
+                'first_name': dummy_user.first_name,
+                'last_name': dummy_user.last_name,
+            },
+        )
+
+        assert response.status_code == 200
+        assert 'redirect' in response.json
+        assert len(dummy_regform.registrations) == 1
+        assert dummy_regform.registrations[0].email == dummy_user.email
+
     def test_existing_registration_is_accessible(self, dummy_reg, test_client):
         dummy_reg.registration_form.require_login = True
         set_feature_enabled(dummy_reg.registration_form.event, 'registration', True)
