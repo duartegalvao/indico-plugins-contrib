@@ -36,3 +36,16 @@ for structured organization and metadata of affiliations.
 ### 3.3
 
 - Initial release
+
+### 3.3.1
+
+- Add Affiliation Catalogs
+- Add Representation field
+
+### 3.3.2
+
+- Add support for Focal Points
+- **Access control:** Event managers and users with registration-management
+  access can now invite catalog contacts and view their email addresses,
+  previously restricted to admins. Event managers can include any affiliation
+  in their catalogs, extending this access across affiliations.
