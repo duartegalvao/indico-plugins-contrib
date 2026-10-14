@@ -161,9 +161,7 @@ def _combine_invitation_recipients(
     contacts: Sequence[InvitationRecipient],
 ) -> list[InvitationRecipient]:
     unique_recipients: dict[_RecipientIdentity, InvitationRecipient] = {}
-    for recipient in sorted(focal_points, key=lambda recipient: recipient.email.lower()):
-        unique_recipients.setdefault(recipient.identity_key, recipient)
-    for recipient in sorted(contacts, key=lambda recipient: recipient.email.lower()):
+    for recipient in [*focal_points, *contacts]:
         unique_recipients.setdefault(recipient.identity_key, recipient)
     return list(unique_recipients.values())
 

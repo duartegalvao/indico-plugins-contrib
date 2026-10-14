@@ -42,28 +42,6 @@ class TestContactInvitationRecipients:
         assert len(recipients) == 1
         assert recipients[0].email == dummy_user.email
 
-    def test_contact_order(self, db, dummy_event, dummy_user, create_event_catalog):
-        dummy_user.email = 'z.primary@example.test'
-        affiliation = Affiliation(name='CERN')
-        db.session.add(affiliation)
-        affiliation.contact_lists.append(
-            AffiliationContactList(
-                name='Ops',
-                emails=[dummy_user.email, 'alice@example.test'],
-            )
-        )
-        create_event_catalog(dummy_event, {affiliation})
-        db.session.flush()
-
-        recipients = get_affiliation_catalog_invitation_recipients(
-            dummy_event,
-            recipient_source=AffiliationCatalogRecipientSource.contacts,
-            contact_lists=['Ops'],
-            include_unnamed_lists=False,
-        )
-
-        assert [recipient.email for recipient in recipients] == ['alice@example.test', dummy_user.email]
-
     @pytest.mark.parametrize(
         ('profile_affiliation', 'second_affiliation', 'expected'),
         (
