@@ -203,7 +203,6 @@ class TestRegformPasscodePlugin:
             ('guest-code', 'wrong-code', False),
             ('guest-code', 'GUEST-code', False),
             ('guest-code', ' guest-code ', True),
-            (' guest-code ', 'guest-code', True),
             ('guest code', 'guestcode', False),
             ('guest-code', 'guest-code', True),
             ('café-🔑', 'cafe-🔑', False),

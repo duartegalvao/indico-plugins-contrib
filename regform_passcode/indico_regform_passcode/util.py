@@ -21,8 +21,7 @@ def get_regform_url(regform, endpoint):
 
 
 def validate_passcode(regform, passcode):
-    passcode = (passcode or '').strip()
-    return bool(passcode) and compare_digest(regform.passcode_config.passcode.strip().encode(), passcode.encode())
+    return bool(passcode) and compare_digest(regform.passcode_config.passcode.encode(), passcode.encode())
 
 
 def requires_passcode(regform, user, registration):

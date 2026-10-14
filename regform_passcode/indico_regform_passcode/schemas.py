@@ -25,7 +25,7 @@ class PasscodeSettingsArgs(mm.Schema):
     def _validate_passcode(self, data, **kwargs):
         if not self.context['regform'].require_login:
             raise ValidationError(_('Passcode protection requires participants to log in.'))
-        if data['is_enabled'] and not data['passcode'].strip():
+        if data['is_enabled'] and not data['passcode']:
             raise ValidationError(_('This field is required.'), field_name='passcode')
 
     @post_load
