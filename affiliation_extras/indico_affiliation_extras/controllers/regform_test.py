@@ -43,6 +43,66 @@ def _recipient_count_url(regform):
 
 
 class TestInvitations:
+    @pytest.mark.usefixtures('no_csrf_check')
+    @pytest.mark.parametrize('recipient_source', ('focal_points', 'contacts', 'both'))
+    def test_recipient_count_excludes_existing_invitations_and_registrations(
+        self,
+        test_client,
+        db,
+        dummy_regform,
+        dummy_user,
+        create_user,
+        create_registration,
+        create_event_catalog,
+        recipient_source,
+    ):
+        dummy_regform.event.update_principal(dummy_user, full_access=True)
+        _login(test_client, dummy_user)
+        managed = Affiliation(name='CERN')
+        db.session.add(managed)
+        db.session.flush()
+        create_event_catalog(dummy_regform.event, {managed})
+        invited = create_user(1, email='invited@example.test')
+        registered = create_user(2, email='registered@example.test')
+        eligible = create_user(3, email='eligible@example.test')
+        invited.secondary_emails.add('invited.secondary@example.test')
+        registered.secondary_emails.add('registered.secondary@example.test')
+        set_focal_points(managed, {invited, registered, eligible})
+        dummy_regform.invitations.extend((
+            RegistrationInvitation(email=invited.email, first_name='', last_name='', affiliation=''),
+            RegistrationInvitation(email='invited.contact@example.test', first_name='', last_name='', affiliation=''),
+        ))
+        db.session.add(create_registration(registered, dummy_regform))
+        db.session.add(
+            AffiliationContactList(
+                affiliation=managed,
+                name='Operations',
+                emails=[
+                    'invited.secondary@example.test',
+                    'registered.secondary@example.test',
+                    eligible.email,
+                    'invited.contact@example.test',
+                    'new.contact@example.test',
+                ],
+            )
+        )
+        db.session.flush()
+
+        resp = test_client.post(
+            _recipient_count_url(dummy_regform),
+            json={
+                'recipient_source': recipient_source,
+                'contact_lists': ['Operations'],
+                'include_unnamed_lists': False,
+            },
+        )
+
+        assert resp.status_code == 200
+        assert resp.json == {
+            'recipient_count': 1 if recipient_source == 'focal_points' else 2,
+            'unnamed_recipient_count': 0 if recipient_source == 'focal_points' else 1,
+        }
+
     @pytest.mark.parametrize('first_source', ('contacts', 'focal_points'))
     @pytest.mark.usefixtures('no_csrf_check')
     def test_invite_catalog_skips_previously_invited_user(

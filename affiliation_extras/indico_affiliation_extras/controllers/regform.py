@@ -353,7 +353,7 @@ class RHAffiliationCatalogInviteMetadata(RHManageRegFormBase):
 
 
 class RHAffiliationCatalogInviteRecipientCount(RHManageRegFormBase):
-    """Return the number of unique recipients for an affiliation-catalog selection."""
+    """Return the number of eligible recipients for an affiliation-catalog selection."""
 
     @use_kwargs(AffiliationCatalogRecipientSelectionArgs)
     def _process(self, recipient_source, contact_lists, include_unnamed_lists):
@@ -363,6 +363,7 @@ class RHAffiliationCatalogInviteRecipientCount(RHManageRegFormBase):
             contact_lists=contact_lists,
             include_unnamed_lists=include_unnamed_lists,
         )
+        recipients = filter_invitation_recipients(self.regform, recipients)
         return jsonify(
             recipient_count=len(recipients),
             unnamed_recipient_count=sum(not r.first_name and not r.last_name for r in recipients),

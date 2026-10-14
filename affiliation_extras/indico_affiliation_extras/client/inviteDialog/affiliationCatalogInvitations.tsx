@@ -297,7 +297,7 @@ const AffiliationCatalogFields = ({eventId, regformId}: AffiliationCatalogFields
 
 const affiliationCatalogInvitations: AffiliationCatalogInvitationMode = {
   key: 'affiliation_catalog',
-  buttonLabel: Translate.string('Affiliation Catalog'),
+  buttonLabel: Translate.string('Affiliation catalog'),
   Component: AffiliationCatalogFields,
   extraFields: ['recipient_source', 'contact_lists', 'include_unnamed_lists'],
   initialValues: {
