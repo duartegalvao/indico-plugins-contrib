@@ -45,8 +45,6 @@ class RegformPasscodePlugin(IndicoPlugin):
         return blueprint
 
     def _passcode_settings(self, regform, **kwargs):
-        if not regform.event.can_manage(session.user, permission='registration'):
-            return
         config = regform.passcode_config
         settings = {
             'is_enabled': bool(config and config.is_enabled and regform.require_login),
