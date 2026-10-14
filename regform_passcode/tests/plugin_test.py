@@ -26,6 +26,9 @@ def logged_in_user(dummy_user, test_client):
 
 @pytest.fixture
 def configured_regform(db, dummy_regform):
+    set_feature_enabled(dummy_regform.event, 'registration', True)
+    dummy_regform.require_login = True
+    dummy_regform.start_dt = now_utc() - timedelta(days=2)
     config = RegistrationFormPasscode(regform=dummy_regform, passcode='guest-code')
     db.session.add(config)
     db.session.flush()
@@ -74,9 +77,6 @@ class TestRegformPasscodePlugin:
     def test_unavailable_form_does_not_prompt_for_passcode(
         self, db, dummy_regform, create_user, create_registration, test_client, availability
     ):
-        set_feature_enabled(dummy_regform.event, 'registration', True)
-        dummy_regform.require_login = True
-        dummy_regform.start_dt = now_utc() - timedelta(days=2)
         if availability == 'unopened':
             dummy_regform.start_dt = now_utc() + timedelta(days=1)
             message = b'The registration period has not started yet.'
@@ -104,9 +104,6 @@ class TestRegformPasscodePlugin:
     def test_invitation_to_inactive_form_still_requires_passcode(
         self, db, dummy_regform, dummy_user, create_user, create_registration, test_client, availability
     ):
-        set_feature_enabled(dummy_regform.event, 'registration', True)
-        dummy_regform.require_login = True
-        dummy_regform.start_dt = now_utc() - timedelta(days=2)
         if availability == 'unopened':
             dummy_regform.start_dt = now_utc() + timedelta(days=1)
         elif availability == 'closed':
@@ -135,9 +132,6 @@ class TestRegformPasscodePlugin:
 
     @pytest.mark.usefixtures('logged_in_user')
     def test_unlock_attempt_limit(self, dummy_regform, test_client):
-        set_feature_enabled(dummy_regform.event, 'registration', True)
-        dummy_regform.require_login = True
-        dummy_regform.start_dt = now_utc() - timedelta(days=1)
         url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
         test_client.get(url)
         with test_client.session_transaction() as sess:
@@ -156,9 +150,6 @@ class TestRegformPasscodePlugin:
     @pytest.mark.usefixtures('logged_in_user')
     @pytest.mark.parametrize('change', ('ip', 'user', 'form'))
     def test_unlock_limit_scope(self, db, dummy_regform, dummy_user, create_user, create_regform, test_client, change):
-        set_feature_enabled(dummy_regform.event, 'registration', True)
-        dummy_regform.require_login = True
-        dummy_regform.start_dt = now_utc() - timedelta(days=1)
         url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
         test_client.get(url)
         with test_client.session_transaction() as sess:
@@ -212,9 +203,6 @@ class TestRegformPasscodePlugin:
     def test_unlock_validates_passcode(
         self, dummy_regform, test_client, configured_regform, saved_code, submitted_code, valid
     ):
-        set_feature_enabled(dummy_regform.event, 'registration', True)
-        dummy_regform.require_login = True
-        dummy_regform.start_dt = now_utc() - timedelta(days=1)
         configured_regform.passcode = saved_code
         url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
         test_client.get(url)
@@ -237,9 +225,6 @@ class TestRegformPasscodePlugin:
 
     @pytest.mark.usefixtures('logged_in_user')
     def test_old_grant_version_is_rejected(self, dummy_regform, test_client, configured_regform):
-        set_feature_enabled(dummy_regform.event, 'registration', True)
-        dummy_regform.require_login = True
-        dummy_regform.start_dt = now_utc() - timedelta(days=1)
         url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
         test_client.get(url)
         with test_client.session_transaction() as sess:
@@ -264,9 +249,6 @@ class TestRegformPasscodePlugin:
     def test_invalidated_grant_blocks_submission(
         self, dummy_regform, dummy_user, test_client, configured_regform, freeze_time, invalidated, private
     ):
-        set_feature_enabled(dummy_regform.event, 'registration', True)
-        dummy_regform.require_login = True
-        dummy_regform.start_dt = now_utc() - timedelta(days=1)
         dummy_regform.private = private
         url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
         query = {'form_token': str(dummy_regform.uuid)} if private else {}
@@ -304,9 +286,6 @@ class TestRegformPasscodePlugin:
 
     @pytest.mark.usefixtures('logged_in_user')
     def test_configured_duration_applies_to_new_grants(self, dummy_regform, test_client, freeze_time):
-        set_feature_enabled(dummy_regform.event, 'registration', True)
-        dummy_regform.require_login = True
-        dummy_regform.start_dt = now_utc() - timedelta(days=1)
         RegformPasscodePlugin.settings.set('grant_duration', 15)
         granted_at = now_utc()
         freeze_time(granted_at)
@@ -335,9 +314,6 @@ class TestRegformPasscodePlugin:
     @pytest.mark.parametrize('event_type', (EventType.lecture, EventType.meeting, EventType.conference))
     def test_new_registration_is_blocked(self, dummy_regform, test_client, method, event_type):
         dummy_regform.event.type_ = event_type
-        dummy_regform.require_login = True
-        dummy_regform.start_dt = now_utc() - timedelta(days=1)
-        set_feature_enabled(dummy_regform.event, 'registration', True)
         response = test_client.open(f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/', method=method)
         if method == 'POST':
             assert response.status_code == 418
@@ -354,9 +330,6 @@ class TestRegformPasscodePlugin:
     def test_another_registration_token_does_not_authorize_submission(
         self, db, dummy_regform, dummy_user, create_user, create_registration, test_client
     ):
-        set_feature_enabled(dummy_regform.event, 'registration', True)
-        dummy_regform.require_login = True
-        dummy_regform.start_dt = now_utc() - timedelta(days=1)
         other_registration = create_registration(create_user(1338), dummy_regform)
         db.session.add(other_registration)
         db.session.flush()
@@ -388,9 +361,6 @@ class TestRegformPasscodePlugin:
     @pytest.mark.usefixtures('logged_in_user')
     def test_existing_registration_submission_preserves_core_error(self, dummy_reg, test_client):
         regform = dummy_reg.registration_form
-        regform.require_login = True
-        regform.start_dt = now_utc() - timedelta(days=1)
-        set_feature_enabled(regform.event, 'registration', True)
         url = f'/event/{regform.event_id}/registrations/{regform.id}/'
         test_client.get(url)
         with test_client.session_transaction() as sess:
@@ -407,8 +377,6 @@ class TestRegformPasscodePlugin:
     def test_anonymous_submission_without_login_requirement(self, dummy_regform, dummy_user, test_client):
         dummy_regform.require_login = False
         dummy_regform.require_captcha = False
-        dummy_regform.start_dt = now_utc() - timedelta(days=1)
-        set_feature_enabled(dummy_regform.event, 'registration', True)
         url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
 
         response = test_client.post(
@@ -427,8 +395,6 @@ class TestRegformPasscodePlugin:
         assert dummy_regform.registrations[0].email == dummy_user.email
 
     def test_existing_registration_is_accessible(self, dummy_reg, test_client):
-        dummy_reg.registration_form.require_login = True
-        set_feature_enabled(dummy_reg.registration_form.event, 'registration', True)
         response = test_client.get(
             f'/event/{dummy_reg.event_id}/registrations/{dummy_reg.registration_form_id}/',
             query_string={'token': str(dummy_reg.uuid)},
@@ -448,9 +414,6 @@ class TestRegformPasscodePlugin:
         ),
     )
     def test_registration_management_bypass(self, dummy_regform, dummy_user, test_client, permission, bypass):
-        dummy_regform.require_login = True
-        set_feature_enabled(dummy_regform.event, 'registration', True)
-        dummy_regform.start_dt = now_utc() - timedelta(days=1)
         if permission == 'full_access':
             dummy_regform.event.update_principal(dummy_user, full_access=True)
         elif permission:
@@ -480,9 +443,6 @@ class TestRegformPasscodePlugin:
     @pytest.mark.usefixtures('smtp', 'logged_in_user')
     @pytest.mark.parametrize('private', (False, True))
     def test_submit_passcode_unlocks_form(self, dummy_regform, dummy_user, test_client, private):
-        set_feature_enabled(dummy_regform.event, 'registration', True)
-        dummy_regform.require_login = True
-        dummy_regform.start_dt = now_utc() - timedelta(days=1)
         dummy_regform.private = private
         url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
         query = {'form_token': str(dummy_regform.uuid)} if private else {}
@@ -527,9 +487,6 @@ class TestRegformPasscodePlugin:
     @pytest.mark.usefixtures('logged_in_user')
     @pytest.mark.parametrize('csrf_token', (None, '00000000-0000-0000-0000-000000000000'))
     def test_unlock_requires_csrf(self, dummy_regform, test_client, csrf_token):
-        set_feature_enabled(dummy_regform.event, 'registration', True)
-        dummy_regform.require_login = True
-        dummy_regform.start_dt = now_utc() - timedelta(days=1)
         url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
         test_client.get(url)
 
@@ -542,9 +499,6 @@ class TestRegformPasscodePlugin:
     def test_unlock_is_scoped_and_does_not_renew_grant(
         self, db, dummy_regform, create_regform, test_client, freeze_time
     ):
-        set_feature_enabled(dummy_regform.event, 'registration', True)
-        dummy_regform.require_login = True
-        dummy_regform.start_dt = now_utc() - timedelta(days=1)
         other_regform = create_regform(dummy_regform.event, start_dt=dummy_regform.start_dt, require_login=True)
         db.session.add(RegistrationFormPasscode(regform=other_regform, passcode='another-code'))
         db.session.flush()
@@ -568,9 +522,6 @@ class TestRegformPasscodePlugin:
         assert b'id="regform-passcode"' in response.data
 
     def test_anonymous_user_must_log_in(self, dummy_regform, test_client):
-        set_feature_enabled(dummy_regform.event, 'registration', True)
-        dummy_regform.require_login = True
-        dummy_regform.start_dt = now_utc() - timedelta(days=1)
         url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
         response = test_client.get(url)
         assert response.status_code == 200
@@ -592,9 +543,6 @@ class TestRegformPasscodePlugin:
 
     @pytest.mark.usefixtures('logged_in_user')
     def test_unlock_requires_matching_event(self, dummy_regform, create_event, test_client):
-        set_feature_enabled(dummy_regform.event, 'registration', True)
-        dummy_regform.require_login = True
-        dummy_regform.start_dt = now_utc() - timedelta(days=1)
         other_event = create_event()
         set_feature_enabled(other_event, 'registration', True)
         url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
@@ -610,8 +558,7 @@ class TestRegformPasscodePlugin:
 
     @pytest.mark.parametrize('logged_in', (False, True))
     def test_form_without_login_requirement_is_not_protected(self, dummy_regform, dummy_user, test_client, logged_in):
-        set_feature_enabled(dummy_regform.event, 'registration', True)
-        dummy_regform.start_dt = now_utc() - timedelta(days=1)
+        dummy_regform.require_login = False
         if logged_in:
             with test_client.session_transaction() as sess:
                 sess.set_session_user(dummy_user)
@@ -623,7 +570,7 @@ class TestRegformPasscodePlugin:
 
     @pytest.mark.usefixtures('logged_in_user')
     def test_unlock_requires_login_required_form(self, dummy_regform, test_client):
-        set_feature_enabled(dummy_regform.event, 'registration', True)
+        dummy_regform.require_login = False
         url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
         test_client.get(url)
         with test_client.session_transaction() as sess:
@@ -637,8 +584,6 @@ class TestRegformPasscodePlugin:
     @pytest.mark.usefixtures('logged_in_user')
     def test_unlock_redirects_existing_registration(self, dummy_reg, test_client):
         regform = dummy_reg.registration_form
-        regform.require_login = True
-        set_feature_enabled(regform.event, 'registration', True)
         url = f'/event/{regform.event_id}/registrations/{regform.id}/'
         response = test_client.get(url)
         assert b'Your registration has been completed' in response.data
