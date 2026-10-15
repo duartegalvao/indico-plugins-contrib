@@ -7,7 +7,6 @@
 
 from flask import flash, jsonify, redirect, session
 
-from indico.core.db import db
 from indico.core.limiter import make_rate_limiter
 from indico.modules.events.registration.controllers.display import RHRegistrationForm
 from indico.modules.events.registration.controllers.management import RHManageRegFormBase
@@ -47,7 +46,6 @@ class RHManagePasscode(RHManageRegFormBase):
         invalidate_grants = data.pop('invalidate_grants')
         if not config:
             config = RegistrationFormPasscode(regform=self.regform)
-            db.session.add(config)
         elif config.passcode != data['passcode'] and invalidate_grants:
             config.invalidate_grants()
         config.populate_from_dict(data)
