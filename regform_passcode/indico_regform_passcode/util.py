@@ -33,11 +33,7 @@ def requires_passcode(regform, user, registration):
     if not config or not config.is_enabled:
         return False
     grant = session.get('plugin_regform_passcode_grants', {}).get(str(regform.id))
-    return (
-        not isinstance(grant, dict)
-        or grant.get('version') != config.version
-        or grant.get('expires', 0) < now_utc().timestamp()
-    )
+    return not grant or grant['version'] != config.version or grant['expires'] < now_utc().timestamp()
 
 
 def grant_passcode_access(regform):
