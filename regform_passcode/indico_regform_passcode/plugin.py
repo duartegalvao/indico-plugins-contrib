@@ -9,6 +9,7 @@ from flask import request, session
 from flask_pluginengine import render_plugin_template
 
 from indico.core import signals
+from indico.core.db import db
 from indico.core.plugins import IndicoPlugin
 from indico.modules.events.models.events import EventType
 from indico.modules.events.registration.controllers.display import RHRegistrationForm
@@ -18,6 +19,7 @@ from indico.web.util import ExpectedError
 from indico_regform_passcode import _
 from indico_regform_passcode.blueprint import blueprint
 from indico_regform_passcode.forms import PasscodeForm, SettingsForm
+from indico_regform_passcode.models.passcodes import RegistrationFormPasscode
 from indico_regform_passcode.util import get_regform_url, requires_passcode
 from indico_regform_passcode.views import (
     WPRegformPasscodeConference,
@@ -40,9 +42,19 @@ class RegformPasscodePlugin(IndicoPlugin):
         self.inject_bundle('main.js', WPManageRegistration)
         self.connect(signals.rh.before_process, self._require_passcode, sender=RHRegistrationForm)
         self.template_hook('extra-regform-settings', self._passcode_settings)
+        self.connect(signals.event.registration.after_registration_form_clone, self._clone_passcode_settings)
 
     def get_blueprints(self):
         return blueprint
+
+    def _clone_passcode_settings(self, sender, new_form, **kwargs):
+        if config := sender.passcode_config:
+            db.session.add(RegistrationFormPasscode(
+                regform=new_form,
+                passcode=config.passcode,
+                is_enabled=config.is_enabled,
+                instructions=config.instructions,
+            ))
 
     def _passcode_settings(self, regform, **kwargs):
         config = regform.passcode_config

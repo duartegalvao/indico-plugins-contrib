@@ -13,6 +13,7 @@ from lxml.html import fromstring
 
 from indico.modules.events.features.util import set_feature_enabled
 from indico.modules.events.models.events import EventType
+from indico.modules.events.registration.clone import RegistrationFormCloner
 from indico.modules.events.registration.models.invitations import RegistrationInvitation
 from indico.util.date_time import now_utc
 
@@ -350,3 +351,35 @@ class TestPasscodeSettings:
         )
         assert b'Passcode protection' in response.data
         assert (b'Enabled' if existing_config and require_login else b'Disabled') in response.data
+
+
+class TestClonePasscodeSettings:
+    @pytest.mark.parametrize('clone_event', (False, True))
+    @pytest.mark.parametrize('is_enabled', (False, True))
+    def test_clone_preserves_passcode_settings(
+        self, db, dummy_regform, configured_regform, create_event, clone_event, is_enabled
+    ):
+        configured_regform.is_enabled = is_enabled
+        configured_regform.instructions = '<p>Ask your host for the code.</p>'
+        configured_regform.version = 3
+        if clone_event:
+            new_event = create_event()
+            result = RegistrationFormCloner(dummy_regform.event).run(new_event, set(), {})
+            new_form = result['form_map'][dummy_regform]
+        else:
+            new_form = RegistrationFormCloner.clone_single_regform(dummy_regform, 'Cloned form')
+        db.session.flush()
+        db.session.expire(new_form, ['passcode_config'])
+
+        config = new_form.passcode_config
+        assert config is not None
+        assert config is not configured_regform
+        assert config.passcode == 'guest-code'
+        assert config.is_enabled == is_enabled
+        assert config.instructions == configured_regform.instructions
+        assert config.version == 1
+
+    def test_clone_without_passcode_stays_unprotected(self, db, dummy_regform):
+        new_form = RegistrationFormCloner.clone_single_regform(dummy_regform, 'Cloned form')
+        db.session.flush()
+        assert new_form.passcode_config is None
