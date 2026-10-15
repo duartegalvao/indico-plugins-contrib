@@ -204,6 +204,7 @@ class TestInvitations:
         assert resp.json['sent'] == (0 if registered else 1)
         assert resp.json['skipped'] == (1 if registered else 0)
         assert [inv.email for inv in dummy_regform.invitations] == ([] if registered else ['secondary@example.test'])
+        assert dummy_regform.event.log_entries.filter_by(module='Registration').count() == (0 if registered else 1)
 
     @pytest.mark.parametrize('recipient_source', ('contacts', 'both'))
     @pytest.mark.parametrize('include_primary', (True, False))
@@ -531,6 +532,7 @@ class TestInvitations:
             'alice.alpha@example.test',
             'alice.zulu@example.test',
         ]
+        assert dummy_regform.event.log_entries.filter_by(module='Registration').count() == 0
 
     @pytest.mark.usefixtures('no_csrf_check')
     def test_invite_by_affiliation_invites_affiliation_users(

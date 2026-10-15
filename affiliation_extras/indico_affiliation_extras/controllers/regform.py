@@ -241,25 +241,26 @@ class RHInviteUsersBase(RHManageRegFormBase):
                 copy_for_sender=copy_for_sender,
             )
 
-        self.regform.log(
-            EventLogRealm.management,
-            LogKind.other,
-            'Registration',
-            'Invitations sent',
-            session.user,
-            data={
-                'Sender': sender_address,
-                'BCC addresses': bcc_addresses,
-                'CC to sender': copy_for_sender,
-                'Subject': subject,
-                'Body': body,
-                'Skip moderation': skip_moderation,
-                'Skip access check': skip_access_check,
-                'Lock email': lock_email,
-                **(audit_log_data or {}),
-                '_html_fields': ['Body'],
-            },
-        )
+        if recipients_to_invite:
+            self.regform.log(
+                EventLogRealm.management,
+                LogKind.other,
+                'Registration',
+                'Invitations sent',
+                session.user,
+                data={
+                    'Sender': sender_address,
+                    'BCC addresses': bcc_addresses,
+                    'CC to sender': copy_for_sender,
+                    'Subject': subject,
+                    'Body': body,
+                    'Skip moderation': skip_moderation,
+                    'Skip access check': skip_access_check,
+                    'Lock email': lock_email,
+                    **(audit_log_data or {}),
+                    '_html_fields': ['Body'],
+                },
+            )
 
         invitations = (
             RegistrationInvitation.query
