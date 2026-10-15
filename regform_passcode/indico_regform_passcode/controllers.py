@@ -5,12 +5,13 @@
 # redistribute them and/or modify them under the terms of the;
 # MIT License see the LICENSE file for more details.
 
-from flask import flash, jsonify, redirect, session
+from flask import flash, redirect, session
 
 from indico.core.limiter import make_rate_limiter
 from indico.modules.events.registration.controllers.display import RHRegistrationForm
 from indico.modules.events.registration.controllers.management import RHManageRegFormBase
 from indico.web.args import use_rh_args
+from indico.web.util import jsonify_data
 
 from indico_regform_passcode import _
 from indico_regform_passcode.forms import PasscodeForm
@@ -50,4 +51,4 @@ class RHManagePasscode(RHManageRegFormBase):
             config.invalidate_grants()
         config.populate_from_dict(data)
         flash(_('Passcode settings saved'), 'success')
-        return jsonify(success=True)
+        return jsonify_data(flash=False)

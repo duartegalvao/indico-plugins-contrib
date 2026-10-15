@@ -312,6 +312,8 @@ class TestRHManagePasscode:
         )
         assert response.status_code == 200
         assert response.is_json
+        with test_client.session_transaction() as sess:
+            assert ('success', 'Passcode settings saved') in sess['_flashes']
         config = dummy_regform.passcode_config
         assert config.is_enabled
         assert config.passcode == 'guest-code'
