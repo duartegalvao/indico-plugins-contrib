@@ -16,7 +16,7 @@ from indico_regform_passcode.models.passcodes import RegistrationFormPasscode
 from indico_regform_passcode.plugin import RegformPasscodePlugin
 
 
-@pytest.mark.usefixtures('configured_regform')
+@pytest.mark.usefixtures('passcode_config')
 class TestRHUnlockRegistrationForm:
     @pytest.mark.usefixtures('logged_in_user')
     def test_unlock_attempt_limit(self, dummy_regform, test_client):
@@ -89,9 +89,9 @@ class TestRHUnlockRegistrationForm:
         ),
     )
     def test_unlock_validates_passcode(
-        self, dummy_regform, test_client, configured_regform, saved_code, submitted_code, valid
+        self, dummy_regform, test_client, passcode_config, saved_code, submitted_code, valid
     ):
-        configured_regform.passcode = saved_code
+        passcode_config.passcode = saved_code
         url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
         test_client.get(url)
         with test_client.session_transaction() as sess:

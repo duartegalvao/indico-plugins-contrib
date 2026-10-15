@@ -60,7 +60,7 @@ class TestPasscodeConfiguration:
             assert b'id="registration-form-submission-container"' in response.data
 
 
-@pytest.mark.usefixtures('configured_regform')
+@pytest.mark.usefixtures('passcode_config')
 class TestRequirePasscode:
     @pytest.mark.usefixtures('logged_in_user')
     @pytest.mark.parametrize('availability', ('unopened', 'closed', 'full', 'purged'))
@@ -121,7 +121,7 @@ class TestRequirePasscode:
         assert b'id="registration-form-submission-container"' not in response.data
 
     @pytest.mark.usefixtures('logged_in_user')
-    def test_old_grant_version_is_rejected(self, dummy_regform, test_client, configured_regform):
+    def test_old_grant_version_is_rejected(self, dummy_regform, test_client, passcode_config):
         url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
         test_client.get(url)
         with test_client.session_transaction() as sess:
@@ -136,7 +136,7 @@ class TestRequirePasscode:
             ).status_code
             == 303
         )
-        configured_regform.version += 1
+        passcode_config.version += 1
         response = test_client.get(url)
         assert b'id="regform-passcode"' in response.data
 
@@ -144,7 +144,7 @@ class TestRequirePasscode:
     @pytest.mark.parametrize('invalidated', ('expired', 'revoked'))
     @pytest.mark.parametrize('private', (False, True))
     def test_invalidated_grant_blocks_submission(
-        self, dummy_regform, dummy_user, test_client, configured_regform, freeze_time, invalidated, private
+        self, dummy_regform, dummy_user, test_client, passcode_config, freeze_time, invalidated, private
     ):
         dummy_regform.private = private
         url = f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/'
@@ -161,7 +161,7 @@ class TestRequirePasscode:
         if invalidated == 'expired':
             freeze_time(now_utc() + timedelta(days=2))
         else:
-            configured_regform.version += 1
+            passcode_config.version += 1
 
         response = test_client.post(
             url,
@@ -362,11 +362,11 @@ class TestClonePasscodeSettings:
     @pytest.mark.parametrize('clone_event', (False, True))
     @pytest.mark.parametrize('is_enabled', (False, True))
     def test_clone_preserves_passcode_settings(
-        self, db, dummy_regform, configured_regform, create_event, clone_event, is_enabled
+        self, db, dummy_regform, passcode_config, create_event, clone_event, is_enabled
     ):
-        configured_regform.is_enabled = is_enabled
-        configured_regform.instructions = '<p>Ask your host for the code.</p>'
-        configured_regform.version = 3
+        passcode_config.is_enabled = is_enabled
+        passcode_config.instructions = '<p>Ask your host for the code.</p>'
+        passcode_config.version = 3
         if clone_event:
             new_event = create_event()
             result = RegistrationFormCloner(dummy_regform.event).run(new_event, set(), {})
@@ -378,10 +378,10 @@ class TestClonePasscodeSettings:
 
         config = new_form.passcode_config
         assert config is not None
-        assert config is not configured_regform
+        assert config is not passcode_config
         assert config.passcode == 'guest-code'
         assert config.is_enabled == is_enabled
-        assert config.instructions == configured_regform.instructions
+        assert config.instructions == passcode_config.instructions
         assert config.version == 1
 
     def test_clone_without_passcode_stays_unprotected(self, db, dummy_regform):

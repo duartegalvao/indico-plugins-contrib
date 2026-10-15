@@ -37,7 +37,7 @@ def logged_in_user(dummy_user, test_client):
 
 
 @pytest.fixture
-def configured_regform(db, dummy_regform):
+def passcode_config(db, dummy_regform):
     set_feature_enabled(dummy_regform.event, 'registration', True)
     dummy_regform.require_login = True
     dummy_regform.start_dt = now_utc() - timedelta(days=2)
