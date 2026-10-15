@@ -80,7 +80,7 @@ def _get_catalog_contact_lists(
         )
     if set(contact_lists) - {contact_list.name for contact_list in lists}:
         raise ValidationError({'contact_lists': ['Unknown contact list']})
-    if not any(contact_list.emails for contact_list in lists):
+    if not any(contact_list.has_active_emails for contact_list in lists):
         raise ValidationError({'contact_lists': ['No contacts match the selected contact lists.']})
     return lists
 
@@ -107,7 +107,7 @@ def _get_focal_point_recipients(event: Event, affiliation_ids: set[int]) -> list
 
 
 def _get_contact_users(contact_lists: Sequence[AffiliationContactList]) -> dict[str, User]:
-    emails = {email for contact_list in contact_lists for email in contact_list.emails}
+    emails = {email for contact_list in contact_lists for email in contact_list.active_emails}
     if not emails:
         return {}
 
@@ -132,7 +132,7 @@ def _group_contact_recipients(
 ) -> list[_ContactRecipientGroup]:
     groups: dict[_RecipientIdentity, _ContactRecipientGroup] = {}
     for contact_list in contact_lists:
-        for email in contact_list.emails:
+        for email in contact_list.active_emails:
             user = users_by_email.get(email)
             identity = ('user', user.id) if user else ('email', email.lower())
             group = groups.setdefault(identity, _ContactRecipientGroup(user))

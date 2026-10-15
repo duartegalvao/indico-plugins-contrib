@@ -39,3 +39,31 @@ def test_contact_list_rejects_inactive_email_outside_list(db):
         db.session.flush()
 
     assert exc_info.value.orig.diag.constraint_name == 'ck_affiliation_contact_lists_inactive_emails_subset'
+
+
+@pytest.mark.parametrize(
+    ('emails', 'inactive_emails', 'expected'),
+    (
+        ([], [], False),
+        (['one@example.test'], [], True),
+        (['one@example.test'], ['one@example.test'], False),
+        (['one@example.test', 'two@example.test'], ['one@example.test'], True),
+        (['one@example.test', 'two@example.test'], ['one@example.test', 'one@example.test'], True),
+    ),
+)
+def test_has_active_emails(db, emails, inactive_emails, expected):
+    contact_list = AffiliationContactList(
+        affiliation=Affiliation(name='CERN'),
+        emails=emails,
+        inactive_emails=inactive_emails,
+    )
+    db.session.add(contact_list)
+    db.session.flush()
+
+    assert contact_list.has_active_emails is expected
+    assert (
+        db.session
+        .query(AffiliationContactList.has_active_emails)
+        .filter(AffiliationContactList.id == contact_list.id)
+        .scalar()
+    ) is expected

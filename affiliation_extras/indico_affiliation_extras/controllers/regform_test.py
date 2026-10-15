@@ -579,7 +579,16 @@ class TestInvitations:
         assert resp.json['skipped'] == 0
         assert [inv.email for inv in dummy_regform.invitations] == ['alice@example.test']
 
-    @pytest.mark.parametrize('has_contacts', (True, False))
+    @pytest.mark.parametrize(
+        ('emails', 'inactive_emails', 'has_contacts'),
+        (
+            (['ops@example.test'], [], True),
+            ([], [], False),
+            (['off@example.test'], ['off@example.test'], False),
+            (['ops@example.test', 'off@example.test'], ['off@example.test'], True),
+            (['ops@example.test', 'off@example.test'], ['off@example.test', 'off@example.test'], True),
+        ),
+    )
     def test_affiliation_catalog_invite_metadata(
         self,
         test_client,
@@ -588,6 +597,8 @@ class TestInvitations:
         dummy_user,
         create_user,
         create_event_catalog,
+        emails,
+        inactive_emails,
         has_contacts,
     ):
         dummy_regform.event.update_principal(dummy_user, full_access=True)
@@ -606,12 +617,14 @@ class TestInvitations:
             AffiliationContactList(
                 affiliation=managed,
                 name='Operations',
-                emails=['ops@example.test'] if has_contacts else [],
+                emails=emails,
+                inactive_emails=inactive_emails,
             ),
             AffiliationContactList(
                 affiliation=managed,
                 name='',
-                emails=['contact@example.test'] if has_contacts else [],
+                emails=emails,
+                inactive_emails=inactive_emails,
             ),
             AffiliationContactList(affiliation=additional, name='Operations', emails=[]),
             AffiliationContactList(affiliation=managed, name='Empty', emails=[]),
@@ -625,10 +638,11 @@ class TestInvitations:
         assert resp.json == {
             'affiliation_count': 2,
             'contact_list_options': [
-                {'name': '', 'has_contacts': has_contacts},
-                {'name': 'Empty', 'has_contacts': False},
-                {'name': 'Operations', 'has_contacts': has_contacts},
-            ],
+                {'name': '', 'has_contacts': True},
+                {'name': 'Operations', 'has_contacts': True},
+            ]
+            if has_contacts
+            else [],
             'focal_point_count': 1,
             'has_affiliation_catalog': True,
         }
@@ -810,7 +824,10 @@ class TestInvitations:
 
     @pytest.mark.usefixtures('no_csrf_check')
     @pytest.mark.parametrize('recipient_source', ('contacts', 'both'))
-    @pytest.mark.parametrize('contact_list_name', ('Operations', '', None))
+    @pytest.mark.parametrize(
+        ('contact_list_name', 'disabled'),
+        (('Operations', False), ('', False), (None, False), ('Operations', True), ('', True)),
+    )
     @pytest.mark.parametrize('count_only', (False, True))
     def test_catalog_rejects_empty_contact_selection(
         self,
@@ -822,6 +839,7 @@ class TestInvitations:
         create_event_catalog,
         recipient_source,
         contact_list_name,
+        disabled,
         count_only,
         monkeypatch,
     ):
@@ -834,7 +852,14 @@ class TestInvitations:
         create_event_catalog(dummy_regform.event, {managed})
         set_focal_points(managed, {create_user(1)})
         if contact_list_name is not None:
-            db.session.add(AffiliationContactList(affiliation=managed, name=contact_list_name, emails=[]))
+            db.session.add(
+                AffiliationContactList(
+                    affiliation=managed,
+                    name=contact_list_name,
+                    emails=['off@example.test'] if disabled else [],
+                    inactive_emails=['off@example.test'] if disabled else [],
+                )
+            )
         db.session.flush()
         data = {
             'recipient_source': recipient_source,

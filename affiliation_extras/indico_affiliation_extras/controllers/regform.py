@@ -335,10 +335,11 @@ class RHAffiliationCatalogInviteMetadata(RHManageRegFormBase):
             db.session
             .query(
                 AffiliationContactList.name,
-                db.func.bool_or(db.func.cardinality(AffiliationContactList.emails) > 0),
+                db.func.bool_or(AffiliationContactList.has_active_emails),
             )
             .filter(AffiliationContactList.affiliation_id.in_(affiliation_ids))
             .group_by(AffiliationContactList.name)
+            .having(db.func.bool_or(AffiliationContactList.has_active_emails))
             .order_by(db.func.indico.indico_unaccent(db.func.lower(AffiliationContactList.name)))
         )
         return jsonify(

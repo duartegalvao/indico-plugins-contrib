@@ -42,6 +42,36 @@ class TestContactInvitationRecipients:
         assert len(recipients) == 1
         assert recipients[0].email == dummy_user.email
 
+    def test_disabled_emails_excluded(self, db, dummy_event, dummy_user, create_event_catalog):
+        dummy_user.affiliation = ''
+        dummy_user.secondary_emails.add('alice.secondary@example.test')
+        cern, wipo = Affiliation(name='CERN'), Affiliation(name='WIPO')
+        db.session.add_all([cern, wipo])
+        cern.contact_lists.append(
+            AffiliationContactList(
+                name='Ops',
+                emails=['alice.secondary@example.test', 'off@example.test'],
+                inactive_emails=['off@example.test'],
+            )
+        )
+        wipo.contact_lists.append(
+            AffiliationContactList(name='Ops', emails=[dummy_user.email], inactive_emails=[dummy_user.email])
+        )
+        create_event_catalog(dummy_event, {cern, wipo})
+        db.session.flush()
+
+        recipients = get_affiliation_catalog_invitation_recipients(
+            dummy_event,
+            recipient_source=AffiliationCatalogRecipientSource.contacts,
+            contact_lists=['Ops'],
+            include_unnamed_lists=False,
+        )
+
+        assert len(recipients) == 1
+        assert recipients[0].email == 'alice.secondary@example.test'
+        assert recipients[0].id == dummy_user.id
+        assert recipients[0].affiliation == 'CERN'
+
     @pytest.mark.parametrize(
         ('profile_affiliation', 'second_affiliation', 'expected'),
         (
