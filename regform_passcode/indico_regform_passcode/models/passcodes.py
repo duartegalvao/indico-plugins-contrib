@@ -11,7 +11,10 @@ from indico.util.string import format_repr
 
 class RegistrationFormPasscode(db.Model):
     __tablename__ = 'passcodes'
-    __table_args__ = {'schema': 'plugin_regform_passcode'}
+    __table_args__ = (
+        db.CheckConstraint("NOT is_enabled OR passcode != ''", 'enabled_passcode_not_empty'),
+        {'schema': 'plugin_regform_passcode'},
+    )
 
     #: The registration form protected by this passcode.
     regform_id = db.Column(

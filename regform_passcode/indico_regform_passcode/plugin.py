@@ -49,12 +49,14 @@ class RegformPasscodePlugin(IndicoPlugin):
 
     def _clone_passcode_settings(self, sender, new_form, **kwargs):
         if config := sender.passcode_config:
-            db.session.add(RegistrationFormPasscode(
-                regform=new_form,
-                passcode=config.passcode,
-                is_enabled=config.is_enabled,
-                instructions=config.instructions,
-            ))
+            db.session.add(
+                RegistrationFormPasscode(
+                    regform=new_form,
+                    passcode=config.passcode,
+                    is_enabled=config.is_enabled,
+                    instructions=config.instructions,
+                )
+            )
 
     def _passcode_settings(self, regform, **kwargs):
         config = regform.passcode_config

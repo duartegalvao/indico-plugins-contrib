@@ -6,10 +6,12 @@
 # MIT License see the LICENSE file for more details.
 
 import json
+from contextlib import nullcontext
 from datetime import timedelta
 
 import pytest
 from lxml.html import fromstring
+from sqlalchemy.exc import IntegrityError
 
 from indico.modules.events.features.util import set_feature_enabled
 from indico.modules.events.models.events import EventType
@@ -386,3 +388,12 @@ class TestClonePasscodeSettings:
         new_form = RegistrationFormCloner.clone_single_regform(dummy_regform, 'Cloned form')
         db.session.flush()
         assert new_form.passcode_config is None
+
+
+class TestPasscodeConstraint:
+    @pytest.mark.parametrize('is_enabled', (False, True))
+    def test_empty_passcode_requires_disabled_protection(self, db, dummy_regform, is_enabled):
+        with pytest.raises(IntegrityError) if is_enabled else nullcontext(), db.session.begin_nested():
+            config = RegistrationFormPasscode(regform=dummy_regform, passcode='', is_enabled=is_enabled)
+            db.session.add(config)
+            db.session.flush()
