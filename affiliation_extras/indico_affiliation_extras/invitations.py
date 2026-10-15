@@ -135,9 +135,7 @@ def _group_contact_recipients(
         for email in contact_list.emails:
             user = users_by_email.get(email)
             identity = ('user', user.id) if user else ('email', email.lower())
-            if identity not in groups:
-                groups[identity] = _ContactRecipientGroup(user)
-            group = groups[identity]
+            group = groups.setdefault(identity, _ContactRecipientGroup(user))
             group.emails.add(email)
             group.affiliations.add(contact_list.affiliation.name)
     return list(groups.values())
