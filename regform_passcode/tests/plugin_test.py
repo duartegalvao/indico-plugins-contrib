@@ -90,17 +90,14 @@ class TestRequirePasscode:
         assert b'id="registration-form-submission-container"' not in response.data
 
     @pytest.mark.usefixtures('logged_in_user')
-    @pytest.mark.parametrize('availability', ('unopened', 'closed', 'full'))
+    @pytest.mark.parametrize('availability', ('unopened', 'closed'))
     def test_invitation_to_inactive_form_still_requires_passcode(
-        self, db, dummy_regform, dummy_user, create_user, create_registration, test_client, availability
+        self, db, dummy_regform, dummy_user, test_client, availability
     ):
         if availability == 'unopened':
             dummy_regform.start_dt = now_utc() + timedelta(days=1)
-        elif availability == 'closed':
-            dummy_regform.end_dt = now_utc() - timedelta(days=1)
         else:
-            dummy_regform.registration_limit = 1
-            db.session.add(create_registration(create_user(1338), dummy_regform))
+            dummy_regform.end_dt = now_utc() - timedelta(days=1)
         invitation = RegistrationInvitation(
             registration_form=dummy_regform,
             email=dummy_user.email,
@@ -119,6 +116,40 @@ class TestRequirePasscode:
         assert response.status_code == 200
         assert b'id="regform-passcode"' in response.data
         assert b'id="registration-form-submission-container"' not in response.data
+
+    @pytest.mark.usefixtures('logged_in_user', 'no_csrf_check')
+    @pytest.mark.parametrize('method', ('GET', 'POST'))
+    def test_full_form_invitation_preserves_core_response(
+        self, db, dummy_regform, dummy_user, create_user, create_registration, test_client, method
+    ):
+        dummy_regform.registration_limit = 1
+        db.session.add(create_registration(create_user(1338), dummy_regform))
+        invitation = RegistrationInvitation(
+            registration_form=dummy_regform,
+            email=dummy_user.email,
+            first_name=dummy_user.first_name,
+            last_name=dummy_user.last_name,
+            affiliation='',
+        )
+        db.session.add(invitation)
+        db.session.flush()
+
+        response = test_client.open(
+            f'/event/{dummy_regform.event_id}/registrations/{dummy_regform.id}/',
+            method=method,
+            query_string={'invitation': str(invitation.uuid)},
+        )
+
+        if method == 'POST':
+            assert response.status_code == 418
+            assert response.json['message'] == 'You cannot register for this event'
+        else:
+            assert response.status_code == 200
+            assert b'id="regform-passcode"' not in response.data
+            assert (
+                b'There are no more places available.' in response.data
+                or b'id="registration-form-submission-container"' in response.data
+            )
 
     @pytest.mark.usefixtures('logged_in_user')
     def test_old_grant_version_is_rejected(self, dummy_regform, test_client, passcode_config):
