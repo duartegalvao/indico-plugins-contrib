@@ -191,11 +191,7 @@ class InviteAffiliationCatalogArgs(InviteUsersArgs, AffiliationCatalogRecipientS
     @validates_schema
     def _validate_recipient_source(self, data, **kwargs):
         if (
-            data['recipient_source']
-            in {
-                AffiliationCatalogRecipientSource.contacts,
-                AffiliationCatalogRecipientSource.both,
-            }
+            data['recipient_source'].includes_contacts
             and not data['contact_lists']
             and not data['include_unnamed_lists']
         ):
@@ -396,10 +392,6 @@ class RHInviteAffiliationCatalog(RHInviteUsersBase):
             include_unnamed_lists=include_unnamed_lists,
         )
         recipients.sort(key=lambda recipient: (recipient.last_name, recipient.first_name, recipient.email))
-        include_contacts = recipient_source in {
-            AffiliationCatalogRecipientSource.contacts,
-            AffiliationCatalogRecipientSource.both,
-        }
         return self._invite_recipients(
             recipients,
             sender_address,
@@ -413,7 +405,7 @@ class RHInviteAffiliationCatalog(RHInviteUsersBase):
             audit_log_data={
                 'Invitation mode': 'Affiliation catalog',
                 'Recipient source': recipient_source.name,
-                'Contact lists': sorted(contact_lists) if include_contacts else [],
-                'Include unnamed contact lists': include_contacts and include_unnamed_lists,
+                'Contact lists': sorted(contact_lists) if recipient_source.includes_contacts else [],
+                'Include unnamed contact lists': recipient_source.includes_contacts and include_unnamed_lists,
             },
         )

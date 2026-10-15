@@ -30,6 +30,14 @@ class AffiliationCatalogRecipientSource(Enum):
     contacts = auto()
     both = auto()
 
+    @property
+    def includes_contacts(self):
+        return self in {self.contacts, self.both}
+
+    @property
+    def includes_focal_points(self):
+        return self in {self.focal_points, self.both}
+
 
 @dataclass(frozen=True)
 class InvitationRecipient:
@@ -177,9 +185,9 @@ def get_affiliation_catalog_invitation_recipients(
     affiliation_ids = get_event_catalog_affiliation_ids(event)
     focal_points = []
     contacts = []
-    if recipient_source in {AffiliationCatalogRecipientSource.focal_points, AffiliationCatalogRecipientSource.both}:
+    if recipient_source.includes_focal_points:
         focal_points = _get_focal_point_recipients(event, affiliation_ids)
-    if recipient_source in {AffiliationCatalogRecipientSource.contacts, AffiliationCatalogRecipientSource.both}:
+    if recipient_source.includes_contacts:
         lists = _get_catalog_contact_lists(affiliation_ids, contact_lists, include_unnamed_lists)
         contacts = _get_contact_recipients(lists)
     return _combine_invitation_recipients(focal_points, contacts)
