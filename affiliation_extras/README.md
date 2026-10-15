@@ -45,6 +45,7 @@ for structured organization and metadata of affiliations.
 ### 3.3.2
 
 - Add support for Focal Points
+- Allow inviting focal points and contacts from the event's Affiliation Catalog
 - **Access control:** Event managers and users with registration-management
   access can now invite catalog contacts and view their email addresses,
   previously restricted to admins. Event managers can include any affiliation
