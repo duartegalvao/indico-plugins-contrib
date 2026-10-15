@@ -51,6 +51,9 @@ class TestPasscodeConfiguration:
             assert b'id="regform-passcode"' in response.data
             assert b'<strong>your invitation</strong>' in response.data
             assert b'onerror=' not in response.data
+            assert fromstring(response.data).xpath(
+                '//div[contains(concat(" ", normalize-space(@class), " "), " editor-output ")]//strong'
+            )
         else:
             assert b'id="registration-form-submission-container"' in response.data
 

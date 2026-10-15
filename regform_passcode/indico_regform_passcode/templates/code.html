@@ -9,7 +9,9 @@
 
 {% block content %}
     {% if regform.passcode_config.instructions %}
-        {{ message_box('info', regform.passcode_config.instructions | rich_markup) }}
+        {% call message_box('info') %}
+            <div class="editor-output">{{ regform.passcode_config.instructions | rich_markup }}</div>
+        {% endcall %}
     {% endif %}
     {{ form_header(form, action=action, id='regform-passcode', no_ajax=true) }}
     {{ form_rows(form) }}
