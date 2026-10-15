@@ -3,7 +3,7 @@
         <div class="icon icon-lock"></div>
         <div class="text">
             <div class="label">{% trans %}Passcode protection{% endtrans %}</div>
-            {% if regform.require_login and regform.passcode_config and regform.passcode_config.is_enabled %}
+            {% if settings.is_enabled %}
                 {% trans %}Enabled{% endtrans %}
             {% else %}
                 {% trans %}Disabled{% endtrans %}
