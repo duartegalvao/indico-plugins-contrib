@@ -9,6 +9,8 @@ import {Translate} from 'indico/react/i18n';
 
 import {ExtendedAffiliation, GroupInfo, TagInfo} from '../types';
 
+import {hasActiveContactEmails} from './contactEmails';
+
 const NO_ITEMS_VALUE = '__NO_ITEMS__';
 const UNNAMED_LIST_VALUE = '__UNNAMED_LIST__';
 const LIST_FILTER_PREFIX = 'contact_list:';
@@ -23,12 +25,12 @@ const getContactListAbsentFilterValue = (name: string) =>
 const BASE_REPRESENTATION_OPTIONS = [
   {
     value: 'has_contact_emails',
-    text: Translate.string('Has contact emails'),
+    text: Translate.string('Has active contact emails'),
     exclusive: true,
   },
   {
     value: 'no_contact_emails',
-    text: Translate.string('No contact emails'),
+    text: Translate.string('No active contact emails'),
     exclusive: true,
   },
 ];
@@ -39,6 +41,9 @@ const buildContactsOptions = (affiliations: ExtendedAffiliation[]) => {
   let hasUnnamedList = false;
   affiliations.forEach(affiliation => {
     affiliation.contact_lists.forEach(contact => {
+      if (!hasActiveContactEmails(contact)) {
+        return;
+      }
       const normalizedName = contact.name.trim();
       if (!normalizedName) {
         hasUnnamedList = true;
@@ -61,21 +66,21 @@ const buildContactsOptions = (affiliations: ExtendedAffiliation[]) => {
     .flatMap(name => [
       {
         value: getContactListFilterValue(name),
-        text: Translate.string('Has contacts in "{name}"', {name}),
+        text: Translate.string('Has active contact emails in "{name}"', {name}),
       },
       {
         value: getContactListAbsentFilterValue(name),
-        text: Translate.string('No contacts in "{name}"', {name}),
+        text: Translate.string('No active contact emails in "{name}"', {name}),
       },
     ]);
   if (hasUnnamedList) {
     listOptions.push({
       value: getContactListFilterValue(''),
-      text: Translate.string('Has contacts in unnamed list'),
+      text: Translate.string('Has active contact emails in unnamed list'),
     });
     listOptions.push({
       value: getContactListAbsentFilterValue(''),
-      text: Translate.string('No contacts in unnamed list'),
+      text: Translate.string('No active contact emails in unnamed list'),
     });
   }
 
@@ -151,7 +156,7 @@ const affiliationFilters = ({affiliations}: {affiliations: ExtendedAffiliation[]
         if (!selectedValues.length) {
           return true;
         }
-        const hasContactEmails = entry.affiliation.contact_lists.length > 0;
+        const hasContactEmails = entry.affiliation.contact_lists.some(hasActiveContactEmails);
         const selectedListValues = selectedValues.filter(value =>
           value.startsWith(LIST_FILTER_PREFIX)
         );
@@ -159,9 +164,9 @@ const affiliationFilters = ({affiliations}: {affiliations: ExtendedAffiliation[]
           value.startsWith(LIST_FILTER_ABSENT_PREFIX)
         );
         const listNameValues = new Set(
-          entry.affiliation.contact_lists.map(contact =>
-            getContactListFilterValue(contact.name.trim())
-          )
+          entry.affiliation.contact_lists
+            .filter(hasActiveContactEmails)
+            .map(contact => getContactListFilterValue(contact.name.trim()))
         );
         return (
           (selectedValues.includes('has_contact_emails') && hasContactEmails) ||

@@ -1,0 +1,49 @@
+// This file is part of the third-party Indico plugins.
+// Copyright (C) 2026 CERN
+//
+// The third-party Indico plugins are free software; you can
+// redistribute them and/or modify them under the terms of the;
+// MIT License see the LICENSE file for more details.
+
+:global(.ui.multiple.dropdown) .inactive-email {
+  background: repeating-linear-gradient(
+    -40deg,
+    var(--background-primary),
+    var(--background-primary) 10px,
+    var(--surface-default) 10px,
+    var(--surface-default) 20px
+  );
+  color: var(--text-secondary-color);
+
+  span {
+    text-decoration: line-through;
+  }
+
+  :global(.ui.form .field.error) & {
+    background: repeating-linear-gradient(
+      -40deg,
+      color-mix(in srgb, var(--background-primary), var(--text-red-color) 5%),
+      color-mix(in srgb, var(--background-primary), var(--text-red-color) 5%) 10px,
+      color-mix(in srgb, var(--background-primary), var(--text-red-color) 20%) 10px,
+      color-mix(in srgb, var(--background-primary), var(--text-red-color) 20%) 20px
+    );
+    border-color: var(--text-red-color);
+    color: var(--text-red-color);
+  }
+}
+
+:global(.ui.label) :global(.ui.button).toggle-inactive-email {
+  background: transparent !important;
+  border: 0;
+  box-shadow: none;
+  color: inherit !important;
+  font-size: inherit;
+  margin-left: 0.45em;
+  margin-right: 0;
+  padding: 0;
+
+  &:focus-visible {
+    outline: 2px solid currentcolor;
+    outline-offset: 2px;
+  }
+}

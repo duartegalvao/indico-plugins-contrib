@@ -22,36 +22,12 @@ import {Plural, PluralTranslate, Singular, Translate} from 'indico/react/i18n';
 import {useIndicoAxios} from 'indico/react/hooks';
 
 import {ExtendedAffiliation} from '../types';
-import {ContactList} from '../components/ContactListField';
+
+import {getAffiliationEmails} from './contactEmails';
 
 import './EmailAffiliations.module.scss';
 
 const SUCCESS_TIMEOUT = 5000;
-
-const filterContactLists = (
-  affiliation: ExtendedAffiliation,
-  contactLists: string[],
-  includeUnnamedLists: boolean
-) =>
-  affiliation.contact_lists.filter(
-    ({name}: ContactList) =>
-      contactLists.length === 0 ||
-      contactLists.includes(name) ||
-      (includeUnnamedLists && name === '')
-  );
-
-const getAffiliationEmails = (
-  affiliation: ExtendedAffiliation,
-  contactLists: string[] = [],
-  includeUnnamedLists: boolean = true
-) =>
-  Array.from(
-    new Set(
-      filterContactLists(affiliation, contactLists, includeUnnamedLists).flatMap(
-        contactList => contactList.emails
-      )
-    )
-  );
 
 function RecipientsField({contactListOptions}: {contactListOptions: string[]}) {
   const form = useForm();
@@ -100,7 +76,7 @@ function RecipientsWarning({
   includeUnnamedLists,
 }: RecipientsComponentProps) {
   const affiliationsWithoutEmails = affiliations.reduce(
-    (n, a) => n + (filterContactLists(a, contactLists, includeUnnamedLists).length === 0 ? 1 : 0),
+    (n, a) => n + (getAffiliationEmails(a, contactLists, includeUnnamedLists).length === 0 ? 1 : 0),
     0
   );
   return (
@@ -113,16 +89,16 @@ function RecipientsWarning({
           header={
             contactLists.length > 0
               ? PluralTranslate.string(
-                  '{count} affiliation does not have contact emails for the selected lists.',
-                  '{count} affiliations do not have contact emails for the selected lists.',
+                  '{count} affiliation does not have active contact emails for the selected lists.',
+                  '{count} affiliations do not have active contact emails for the selected lists.',
                   affiliationsWithoutEmails,
                   {
                     count: affiliationsWithoutEmails,
                   }
                 )
               : PluralTranslate.string(
-                  '{count} affiliation does not have contact emails.',
-                  '{count} affiliations do not have contact emails.',
+                  '{count} affiliation does not have active contact emails.',
+                  '{count} affiliations do not have active contact emails.',
                   affiliationsWithoutEmails,
                   {
                     count: affiliationsWithoutEmails,
@@ -199,9 +175,9 @@ function RecipientsList({
                   <List.Description>
                     {contactLists.length > 0
                       ? Translate.string(
-                          'This affiliation has no contact emails for the selected lists.'
+                          'This affiliation has no active contact emails for the selected lists.'
                         )
-                      : Translate.string('This affiliation has no contact emails.')}
+                      : Translate.string('This affiliation has no active contact emails.')}
                   </List.Description>
                 ) : (
                   <>
@@ -333,8 +309,8 @@ export default function EmailAffiliations({
               error
               icon="warning sign"
               content={PluralTranslate.string(
-                'The selected affiliation does not have valid contact emails. Please add contact emails to the affiliation before trying to send emails.',
-                'None of the selected affiliations have valid contact emails. Please add contact emails to the affiliations before trying to send emails.',
+                'The selected affiliation does not have valid active contact emails. Please add or enable valid contact emails before trying to send emails.',
+                'None of the selected affiliations have valid active contact emails. Please add or enable valid contact emails before trying to send emails.',
                 affiliations.length
               )}
             />
@@ -387,8 +363,8 @@ export default function EmailAffiliations({
       sentEmailsWarning={
         skippedCount
           ? PluralTranslate.string(
-              '{count} affiliation was skipped because it has no valid contact emails.',
-              '{count} affiliations were skipped because they have no valid contact emails.',
+              '{count} affiliation was skipped because it has no valid active contact emails.',
+              '{count} affiliations were skipped because they have no valid active contact emails.',
               skippedCount,
               {count: skippedCount}
             )
