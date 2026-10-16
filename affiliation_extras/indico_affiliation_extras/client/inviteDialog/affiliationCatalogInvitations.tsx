@@ -101,22 +101,31 @@ const AffiliationCatalogFields = ({eventId, regformId}: AffiliationCatalogFields
   const hasContactLists = !!data?.contactListOptions.length;
   const hasFocalPoints = !!(data && data.focalPointCount);
   const includesContacts = recipientSource === 'contacts' || recipientSource === 'both';
-  const recipientSourceOptions = useMemo<{value: RecipientSource; text: string}[]>(
+  const recipientSourceOptions = useMemo<
+    {value: RecipientSource; text: string; disabled: boolean}[]
+  >(
     () => [
-      ...(hasFocalPoints
-        ? [{value: 'focal_points' as const, text: Translate.string('Focal points')}]
-        : []),
-      ...(hasContactLists
-        ? [{value: 'contacts' as const, text: Translate.string('Contacts')}]
-        : []),
-      ...(hasFocalPoints && hasContactLists
-        ? [{value: 'both' as const, text: Translate.string('Focal points and contacts')}]
-        : []),
+      {
+        value: 'focal_points',
+        text: Translate.string('Focal points'),
+        disabled: !hasFocalPoints,
+      },
+      {
+        value: 'contacts',
+        text: Translate.string('Contacts'),
+        disabled: !hasContactLists,
+      },
+      {
+        value: 'both',
+        text: Translate.string('Focal points and contacts'),
+        disabled: !hasFocalPoints || !hasContactLists,
+      },
     ],
     [hasContactLists, hasFocalPoints]
   );
+  const availableRecipientSources = recipientSourceOptions.filter(option => !option.disabled);
   const onlyRecipientSource =
-    recipientSourceOptions.length === 1 ? recipientSourceOptions[0].value : null;
+    availableRecipientSources.length === 1 ? availableRecipientSources[0].value : null;
   const showNoContactsError = !!(
     includesContacts &&
     data &&
@@ -242,12 +251,12 @@ const AffiliationCatalogFields = ({eventId, regformId}: AffiliationCatalogFields
         label={Translate.string('Recipients')}
         placeholder={Translate.string('Select recipient source')}
         options={recipientSourceOptions}
-        disabled={recipientSourceOptions.length <= 1}
+        disabled={!availableRecipientSources.length}
         selection
         fluid
         required
       />
-      {data.affiliationCount > 0 && !recipientSourceOptions.length && (
+      {data.affiliationCount > 0 && !availableRecipientSources.length && (
         <Message negative content={Translate.string('No invitation recipients found.')} />
       )}
       {includesContacts && (hasContactLists || showNoContactsError) && (
