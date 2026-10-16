@@ -6,5 +6,6 @@
   "include": [
     "../../src/indico/web/client/js/types",
     "affiliation_extras/indico_affiliation_extras/client/**/*",
+    "regform_passcode/indico_regform_passcode/client/**/*",
   ]
 }
