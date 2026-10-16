@@ -5,6 +5,8 @@
 # redistribute them and/or modify them under the terms of the;
 # MIT License see the LICENSE file for more details.
 
+from sqlalchemy.ext.hybrid import hybrid_property
+
 from indico.core.db import db
 from indico.util.string import format_repr
 
@@ -46,3 +48,11 @@ class AffiliationContactList(db.Model):
     def active_emails(self):
         inactive_emails = set(self.inactive_emails)
         return [email for email in self.emails if email not in inactive_emails]
+
+    @hybrid_property
+    def has_active_emails(self):
+        return bool(self.active_emails)
+
+    @has_active_emails.expression
+    def has_active_emails(cls):
+        return ~cls.emails.op('<@', is_comparison=True)(cls.inactive_emails)
