@@ -40,7 +40,7 @@ interface InvitationFormValues extends AffiliationCatalogInvitationValues {
 interface AffiliationCatalogMetadata {
   affiliationCount: number;
   focalPointCount: number;
-  contactListOptions: {name: string; hasContacts: boolean}[];
+  contactListOptions: string[];
   hasAffiliationCatalog: boolean;
 }
 
@@ -96,9 +96,8 @@ const AffiliationCatalogFields = ({eventId, regformId}: AffiliationCatalogFields
     }),
     [contactLists, eventId, includeUnnamedLists, recipientSource, regformId]
   );
-  const hasUnnamedContactLists = data?.contactListOptions.some(({name}) => name === '');
-  const namedContactLists =
-    data?.contactListOptions.filter(({name}) => name).map(({name}) => name) ?? [];
+  const hasUnnamedContactLists = data?.contactListOptions.includes('');
+  const namedContactLists = data?.contactListOptions.filter(Boolean) ?? [];
   const hasContactLists = !!data?.contactListOptions.length;
   const hasFocalPoints = !!(data && data.focalPointCount);
   const includesContacts = recipientSource === 'contacts' || recipientSource === 'both';
@@ -121,9 +120,8 @@ const AffiliationCatalogFields = ({eventId, regformId}: AffiliationCatalogFields
   const showNoContactsError = !!(
     includesContacts &&
     data &&
-    !data.contactListOptions.some(
-      ({name, hasContacts}) =>
-        hasContacts && (name === '' ? includeUnnamedLists : contactLists.includes(name))
+    !data.contactListOptions.some(name =>
+      name === '' ? includeUnnamedLists : contactLists.includes(name)
     )
   );
 

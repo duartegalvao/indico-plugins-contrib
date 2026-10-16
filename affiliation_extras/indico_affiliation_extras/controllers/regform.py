@@ -331,21 +331,20 @@ class RHAffiliationCatalogInviteMetadata(RHManageRegFormBase):
 
     def _process(self):
         affiliation_ids = get_event_catalog_affiliation_ids(self.event)
-        contact_lists = (
+        contact_list_names = (
             db.session
-            .query(
-                AffiliationContactList.name,
-                db.func.bool_or(AffiliationContactList.has_active_emails),
+            .query(AffiliationContactList.name)
+            .filter(
+                AffiliationContactList.affiliation_id.in_(affiliation_ids),
+                AffiliationContactList.has_active_emails,
             )
-            .filter(AffiliationContactList.affiliation_id.in_(affiliation_ids))
             .group_by(AffiliationContactList.name)
-            .having(db.func.bool_or(AffiliationContactList.has_active_emails))
             .order_by(db.func.indico.indico_unaccent(db.func.lower(AffiliationContactList.name)))
         )
         return jsonify(
             focal_point_count=len(get_event_catalog_focal_points(self.event, affiliation_ids)),
             affiliation_count=len(affiliation_ids),
-            contact_list_options=[{'name': name, 'has_contacts': has_contacts} for name, has_contacts in contact_lists],
+            contact_list_options=[name for (name,) in contact_list_names],
             has_affiliation_catalog=get_default_catalog(self.event) is not None,
         )
 

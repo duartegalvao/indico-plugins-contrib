@@ -637,12 +637,7 @@ class TestInvitations:
         assert resp.status_code == 200
         assert resp.json == {
             'affiliation_count': 2,
-            'contact_list_options': [
-                {'name': '', 'has_contacts': True},
-                {'name': 'Operations', 'has_contacts': True},
-            ]
-            if has_contacts
-            else [],
+            'contact_list_options': ['', 'Operations'] if has_contacts else [],
             'focal_point_count': 1,
             'has_affiliation_catalog': True,
         }
