@@ -14,7 +14,9 @@ from indico.modules.users.models.affiliations import Affiliation
 from indico_affiliation_extras.focal_points import (
     focal_event_ids,
     focal_list_criterion,
+    get_event_catalog_affiliation_ids,
     get_focal_affiliation_ids,
+    get_registration_focal_points,
     set_focal_points,
 )
 from indico_affiliation_extras.permissions import set_focal_point_management_enabled
@@ -47,6 +49,21 @@ def _focal_query(regform, user):
 
 
 class TestFocalPointQueries:
+    def test_catalog_scope_reuses_query_results(
+        self, app_context, dummy_event, create_catalog_affiliations, count_queries
+    ):
+        affiliations = create_catalog_affiliations(dummy_event)
+        expected = {affiliation.id for affiliation in affiliations}
+        app_context.config['TESTING'] = False
+        try:
+            with app_context.test_request_context():
+                assert get_event_catalog_affiliation_ids(dummy_event) == expected
+                with count_queries() as count:
+                    assert get_event_catalog_affiliation_ids(dummy_event) == expected
+                assert count() == 0
+        finally:
+            app_context.config['TESTING'] = True
+
     def test_get_focal_affiliation_ids(self, db, create_user):
         user = create_user(1)
         cern = Affiliation(name='CERN')
@@ -76,6 +93,70 @@ class TestFocalPointQueries:
         set_focal_point_management_enabled(dummy_regform, False)
         db.session.flush()
         assert focal_event_ids(focal) == set()
+
+
+class TestRegistrationFocalPoints:
+    @pytest.mark.parametrize('excluded', ('none', 'field', 'section', 'list', 'affiliation', 'user', 'outside_catalog'))
+    def test_matches_registration_access_scope(
+        self,
+        db,
+        dummy_regform,
+        create_user,
+        create_event_catalog,
+        create_representation_field,
+        create_representation_registration,
+        excluded,
+    ):
+        affiliation = Affiliation(name='CERN')
+        db.session.add(affiliation)
+        db.session.flush()
+        affiliation_list = create_event_catalog(dummy_regform.event, [affiliation])
+        field = create_representation_field(dummy_regform)
+        field.parent = RegistrationFormSection(registration_form=dummy_regform, title='Extra')
+        registration = create_representation_registration(field, affiliation.id)
+        focal = create_user(1)
+        set_focal_points(affiliation, {focal})
+        if excluded == 'field':
+            field.is_enabled = False
+        elif excluded == 'section':
+            field.parent.is_enabled = False
+        elif excluded == 'list':
+            affiliation_list.is_enabled = False
+        elif excluded == 'affiliation':
+            affiliation.is_deleted = True
+        elif excluded == 'user':
+            focal.is_deleted = True
+        elif excluded == 'outside_catalog':
+            affiliation_list.affiliations.clear()
+        db.session.flush()
+
+        assert get_registration_focal_points(registration) == ({focal} if excluded == 'none' else set())
+
+    def test_combines_all_representation_affiliations(
+        self,
+        db,
+        dummy_regform,
+        create_user,
+        create_catalog_affiliations,
+        create_representation_field,
+        create_representation_registration,
+    ):
+        managed, other = create_catalog_affiliations(dummy_regform.event)
+        registration = create_representation_registration(create_representation_field(dummy_regform), managed.id)
+        second = create_representation_field(dummy_regform)
+        db.session.add(
+            RegistrationData(
+                registration=registration,
+                field_data=second.current_data,
+                data={'affiliation': {'id': other.id, 'text': other.name}},
+            )
+        )
+        shared, first, second_focal = (create_user(i) for i in (1, 2, 3))
+        set_focal_points(managed, {shared, first})
+        set_focal_points(other, {shared, second_focal})
+        db.session.flush()
+
+        assert get_registration_focal_points(registration) == {shared, first, second_focal}
 
 
 class TestRegistrationCriterion:

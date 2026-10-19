@@ -13,7 +13,9 @@ from indico.modules.events.models.settings import EventSetting
 from indico.modules.events.registration.models.form_fields import RegistrationFormField, RegistrationFormFieldData
 from indico.modules.events.registration.models.forms import RegistrationForm
 from indico.modules.events.registration.models.registrations import Registration, RegistrationData
+from indico.modules.users.models.affiliations import Affiliation
 from indico.modules.users.models.users import User
+from indico.util.caching import memoize_request
 
 from indico_affiliation_extras.fields import RepresentationField
 from indico_affiliation_extras.models.focal_points import FocalPoint
@@ -62,6 +64,7 @@ def get_focal_affiliation_ids(user):
     return {entry.affiliation.id for entry in user.focal_point_entries if not entry.affiliation.is_deleted}
 
 
+@memoize_request
 def get_event_catalog_affiliation_ids(event):
     ids = set()
     for affiliation_list in get_representation_affiliation_lists(event):
@@ -91,17 +94,38 @@ def focal_affiliations_for_event(user, event):
     return focal_ids & get_event_catalog_affiliation_ids(event)
 
 
+def _representation_data_criterion(registration_id):
+    return db.and_(
+        RegistrationData.registration_id == registration_id,
+        RegistrationData.field_data_id == RegistrationFormFieldData.id,
+        RegistrationFormFieldData.field_id == RegistrationFormField.id,
+        RegistrationFormField.is_visible,
+        RegistrationFormField.input_type == RepresentationField.name,
+    )
+
+
+def get_registration_focal_points(registration):
+    representation_id = db.cast(RegistrationData.data['affiliation']['id'].astext, db.Integer)
+    affiliation_ids = {
+        affiliation_id
+        for (affiliation_id,) in db.session.query(representation_id).filter(
+            _representation_data_criterion(registration.id),
+            Affiliation.id == representation_id,
+            ~Affiliation.is_deleted,
+        )
+    }
+    event = registration.registration_form.event
+    affiliation_ids &= get_event_catalog_affiliation_ids(event)
+    return get_event_catalog_focal_points(event, affiliation_ids)
+
+
 def _focal_match_criterion(focal_ids):
     if not focal_ids:
         return db.false()
     representation_id = db.cast(RegistrationData.data['affiliation']['id'].astext, db.Integer)
     return db.exists().where(
         db.and_(
-            RegistrationData.registration_id == Registration.id,
-            RegistrationData.field_data_id == RegistrationFormFieldData.id,
-            RegistrationFormFieldData.field_id == RegistrationFormField.id,
-            RegistrationFormField.is_visible,
-            RegistrationFormField.input_type == RepresentationField.name,
+            _representation_data_criterion(Registration.id),
             representation_id.in_(focal_ids),
         )
     )

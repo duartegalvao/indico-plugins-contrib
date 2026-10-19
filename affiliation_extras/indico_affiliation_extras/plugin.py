@@ -6,6 +6,7 @@
 # MIT License see the LICENSE file for more details.
 
 from flask import g, has_request_context, request, session
+from wtforms.fields import BooleanField
 
 from indico.core import signals
 from indico.core.config import config
@@ -14,6 +15,7 @@ from indico.core.errors import UserValueError
 from indico.core.plugins import IndicoPlugin, render_plugin_template, url_for_plugin
 from indico.modules.events.models.events import Event
 from indico.modules.events.registration.fields.base import RegistrationFormFieldBase
+from indico.modules.events.registration.forms import EmailRegistrantsForm
 from indico.modules.events.registration.views import (
     WPDisplayRegistrationFormConference,
     WPDisplayRegistrationFormSimpleEvent,
@@ -23,9 +25,10 @@ from indico.modules.logs import AppLogRealm, LogKind
 from indico.modules.logs.util import make_diff_log
 from indico.modules.users.schemas import AffiliationArgs, AffiliationSchema
 from indico.modules.users.views import WPAffiliationsDashboard
-from indico.util.i18n import _
+from indico.web.forms.widgets import SwitchWidget
 from indico.web.menu import SideMenuItem
 
+from indico_affiliation_extras import _
 from indico_affiliation_extras.blueprint import blueprint
 from indico_affiliation_extras.fields import RepresentationField, iter_representation_reglist_items
 from indico_affiliation_extras.focal_points import (
@@ -33,6 +36,7 @@ from indico_affiliation_extras.focal_points import (
     focal_event_ids,
     focal_list_criterion,
     get_focal_affiliation_ids,
+    get_registration_focal_points,
     get_submitted_affiliation_ids,
     merge_focal_points,
 )
@@ -85,6 +89,12 @@ class AffiliationExtrasPlugin(IndicoPlugin):
         self.connect(signals.event.filter_registration_list, self._filter_registration_list)
         self.connect(signals.event.registration_pre_create, self._check_registration_pre_create)
         self.connect(signals.event.registration_form_edited, self._persist_focal_point_setting)
+        self.connect(signals.core.add_form_fields, self._add_registration_email_fields, sender=EmailRegistrantsForm)
+        self.connect(
+            signals.core.before_notification_send,
+            self._cc_registration_focal_points,
+            sender='registration-custom-email',
+        )
         self.connect(signals.users.filter_user_search_results, self._filter_user_search_results)
         self.connect(signals.users.extra_linked_events, self._extra_linked_events)
         self.connect(signals.users.merged, self._merge_users)
@@ -100,6 +110,35 @@ class AffiliationExtrasPlugin(IndicoPlugin):
 
     def get_blueprints(self):
         return blueprint
+
+    def _add_registration_email_fields(self, sender, form_kwargs, **kwargs):
+        enabled = focal_point_management_enabled(form_kwargs['regform'])
+        description = (
+            _("Send each email to the focal points for the registrant's representation affiliations.")
+            if enabled
+            else _('Focal point management is disabled for this registration form.')
+        )
+        return (
+            'affiliation_extras_cc_focal_points',
+            BooleanField(
+                _('CC focal points'),
+                default=enabled,
+                widget=SwitchWidget(),
+                description=description,
+                render_kw={'disabled': not enabled},
+            ),
+        )
+
+    def _cc_registration_focal_points(self, sender, email, registration, form, **kwargs):
+        if not focal_point_management_enabled(registration.registration_form):
+            return
+        if not form.ext__affiliation_extras_cc_focal_points.data:
+            return
+        recipients = {address.lower() for address in email['to'] | email['cc']}
+        for focal in get_registration_focal_points(registration):
+            if focal.email.lower() not in recipients:
+                email['cc'].add(focal.email)
+                recipients.add(focal.email.lower())
 
     def _extend_affiliation_schema(self, sender, data, orig, **kwargs):
         if not has_request_context() or request.endpoint != 'users.api_admin_affiliations':
