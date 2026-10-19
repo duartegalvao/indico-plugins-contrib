@@ -100,7 +100,7 @@ field identifies one of their affiliations, and register people for those affili
 This access is limited to matching registrations and enabled forms. Existing event or
 registration-management permissions continue to apply independently.
 
-When emailing registrants from the registration list, **CC focal points** is available on
+When emailing registrants from the registration list, **Send copy to focal points** is available on
 these forms and is off by default. When enabled, each email copies the current focal points
 for that registrant's representation affiliations, using the same field visibility and
 catalog scope as focal point access. Manually entered CC addresses are preserved. The

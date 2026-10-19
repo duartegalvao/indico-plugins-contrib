@@ -121,7 +121,7 @@ class AffiliationExtrasPlugin(IndicoPlugin):
         return (
             'affiliation_extras_cc_focal_points',
             BooleanField(
-                _('CC focal points'),
+                _('Send copy to focal points'),
                 default=False,
                 widget=SwitchWidget(),
                 description=description,
