@@ -122,7 +122,7 @@ class AffiliationExtrasPlugin(IndicoPlugin):
             'affiliation_extras_cc_focal_points',
             BooleanField(
                 _('CC focal points'),
-                default=enabled,
+                default=False,
                 widget=SwitchWidget(),
                 description=description,
                 render_kw={'disabled': not enabled},

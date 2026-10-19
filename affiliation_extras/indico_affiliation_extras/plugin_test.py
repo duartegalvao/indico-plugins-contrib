@@ -119,7 +119,7 @@ class TestRegistrationEmailFocalPoints:
         form = EmailRegistrantsForm(regform=dummy_regform, recipients=[mine.email])
         field = form.ext__affiliation_extras_cc_focal_points
 
-        assert field.data is enabled
+        assert not field.data
         assert ('disabled' in str(field())) is not enabled
         if not enabled:
             assert field.description == 'Focal point management is disabled for this registration form.'
@@ -129,6 +129,7 @@ class TestRegistrationEmailFocalPoints:
         focal, mine, other = setup_focal_point(dummy_regform)
         session.set_session_user(focal)
         form = EmailRegistrantsForm(regform=dummy_regform, recipients=[mine.email, other.email])
+        form.ext__affiliation_extras_cc_focal_points.data = True
         for registration, expected in ((mine, {focal.email}), (other, set())):
             email = make_email(to_list=registration.email, subject='Update', body='Please update your registration')
             signals.core.before_notification_send.send(
@@ -162,6 +163,7 @@ class TestRegistrationEmailFocalPoints:
         set_focal_points(affiliation, {focal, registrant, extra})
         db.session.flush()
         form = EmailRegistrantsForm(regform=dummy_regform, recipients=[registration.email])
+        form.ext__affiliation_extras_cc_focal_points.data = True
         email = make_email(
             to_list=registration.email.upper(),
             cc_list=[focal.email.upper(), 'manual@example.test'],
