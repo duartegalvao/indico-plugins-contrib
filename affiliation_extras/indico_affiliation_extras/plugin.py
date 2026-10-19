@@ -36,7 +36,7 @@ from indico_affiliation_extras.focal_points import (
     focal_event_ids,
     focal_list_criterion,
     get_focal_affiliation_ids,
-    get_registration_focal_points,
+    get_registrations_focal_points,
     get_submitted_affiliation_ids,
     merge_focal_points,
 )
@@ -135,7 +135,8 @@ class AffiliationExtrasPlugin(IndicoPlugin):
         if not form.ext__affiliation_extras_cc_focal_points.data:
             return
         recipients = {address.lower() for address in email['to'] | email['cc']}
-        for focal in get_registration_focal_points(registration):
+        focal_points = get_registrations_focal_points(registration.registration_form, tuple(form.registration_id.data))
+        for focal in focal_points.get(registration.id, set()):
             if focal.email.lower() not in recipients:
                 email['cc'].add(focal.email)
                 recipients.add(focal.email.lower())
