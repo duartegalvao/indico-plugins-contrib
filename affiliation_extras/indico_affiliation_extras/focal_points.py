@@ -108,7 +108,7 @@ def _representation_data_query():
 @memoize_request
 def get_registrations_focal_points(regform, registration_ids):
     affiliation_ids = get_event_catalog_affiliation_ids(regform.event)
-    if not affiliation_ids or not registration_ids:
+    if not affiliation_ids:
         return {}
     representation_id = db.cast(RegistrationData.data['affiliation']['id'].astext, db.Integer)
     query = (
