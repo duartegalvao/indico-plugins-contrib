@@ -114,7 +114,7 @@ class AffiliationExtrasPlugin(IndicoPlugin):
     def _add_registration_email_fields(self, sender, form_kwargs, **kwargs):
         if not focal_point_management_enabled(form_kwargs['regform']):
             return
-        description = _("Send each email to the focal points for the registrant's representation affiliations.")
+        description = _("Send a copy of each email to the focal points of the registrant's representation affiliations")
         return (
             'affiliation_extras_cc_focal_points',
             BooleanField(
