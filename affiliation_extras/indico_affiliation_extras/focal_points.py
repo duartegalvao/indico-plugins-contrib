@@ -64,7 +64,6 @@ def get_focal_affiliation_ids(user):
     return {entry.affiliation.id for entry in user.focal_point_entries if not entry.affiliation.is_deleted}
 
 
-@memoize_request
 def get_event_catalog_affiliation_ids(event):
     ids = set()
     for affiliation_list in get_representation_affiliation_lists(event):

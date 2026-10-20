@@ -14,7 +14,6 @@ from indico.modules.users.models.affiliations import Affiliation
 from indico_affiliation_extras.focal_points import (
     focal_event_ids,
     focal_list_criterion,
-    get_event_catalog_affiliation_ids,
     get_focal_affiliation_ids,
     get_registrations_focal_points,
     set_focal_points,
@@ -49,18 +48,6 @@ def _focal_query(regform, user):
 
 
 class TestFocalPointQueries:
-    @pytest.mark.usefixtures('not_testing')
-    def test_catalog_scope_reuses_query_results(
-        self, app_context, dummy_event, create_catalog_affiliations, count_queries
-    ):
-        affiliations = create_catalog_affiliations(dummy_event)
-        expected = {affiliation.id for affiliation in affiliations}
-        with app_context.test_request_context():
-            assert get_event_catalog_affiliation_ids(dummy_event) == expected
-            with count_queries() as count:
-                assert get_event_catalog_affiliation_ids(dummy_event) == expected
-            assert count() == 0
-
     def test_get_focal_affiliation_ids(self, db, create_user):
         user = create_user(1)
         cern = Affiliation(name='CERN')
