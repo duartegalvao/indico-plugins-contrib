@@ -104,7 +104,7 @@ When emailing registrants from the registration list, **Send copy to focal point
 these forms and is off by default. When enabled, each email copies the current focal points
 for that registrant's representation affiliations, using the same field visibility and
 catalog scope as focal point access. Manually entered CC addresses are preserved. The
-option is disabled with an explanation when focal point management is turned off for the form.
+option is hidden when focal point management is turned off for the form.
 
 ### Registration Invitations
 

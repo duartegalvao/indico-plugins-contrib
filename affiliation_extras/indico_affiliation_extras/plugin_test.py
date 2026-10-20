@@ -145,18 +145,20 @@ class TestRegistrationEmailFocalPoints:
             app_context.config['TESTING'] = True
 
     @pytest.mark.usefixtures('request_context')
-    @pytest.mark.parametrize('enabled', (True, False))
-    def test_checkbox_default_and_disabled_explanation(self, dummy_regform, setup_focal_point, enabled):
+    @pytest.mark.parametrize('state', ('enabled', 'disabled', 'no_representation'))
+    def test_checkbox_only_shown_when_management_enabled(self, dummy_regform, setup_focal_point, state):
         focal, mine, __ = setup_focal_point(dummy_regform)
         session.set_session_user(focal)
-        set_focal_point_management_enabled(dummy_regform, enabled)
+        set_focal_point_management_enabled(dummy_regform, state != 'disabled')
+        if state == 'no_representation':
+            for field in dummy_regform.active_fields:
+                if field.input_type == RepresentationField.name:
+                    field.is_enabled = False
         form = EmailRegistrantsForm(regform=dummy_regform, recipients=[mine.email])
-        field = form.ext__affiliation_extras_cc_focal_points
 
-        assert not field.data
-        assert ('disabled' in str(field())) is not enabled
-        if not enabled:
-            assert field.description == 'Focal point management is disabled for this registration form.'
+        assert ('ext__affiliation_extras_cc_focal_points' in form) is (state == 'enabled')
+        if state == 'enabled':
+            assert not form.ext__affiliation_extras_cc_focal_points.data
 
     @pytest.mark.usefixtures('request_context')
     def test_cc_focal_points_per_registration(self, dummy_regform, setup_focal_point):
@@ -178,11 +180,11 @@ class TestRegistrationEmailFocalPoints:
     def test_no_cc_when_unchecked_or_management_disabled(self, dummy_regform, setup_focal_point, enabled, checked):
         focal, registration, __ = setup_focal_point(dummy_regform)
         session.set_session_user(focal)
-        set_focal_point_management_enabled(dummy_regform, enabled)
         form = EmailRegistrantsForm(
             regform=dummy_regform, recipients=[registration.email], registration_id=[registration.id]
         )
         form.ext__affiliation_extras_cc_focal_points.data = checked
+        set_focal_point_management_enabled(dummy_regform, enabled)
         email = make_email(to_list=registration.email, cc_list=['manual@example.test'], subject='Update', body='Update')
 
         signals.core.before_notification_send.send(

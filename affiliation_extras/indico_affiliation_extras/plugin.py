@@ -112,12 +112,9 @@ class AffiliationExtrasPlugin(IndicoPlugin):
         return blueprint
 
     def _add_registration_email_fields(self, sender, form_kwargs, **kwargs):
-        enabled = focal_point_management_enabled(form_kwargs['regform'])
-        description = (
-            _("Send each email to the focal points for the registrant's representation affiliations.")
-            if enabled
-            else _('Focal point management is disabled for this registration form.')
-        )
+        if not focal_point_management_enabled(form_kwargs['regform']):
+            return
+        description = _("Send each email to the focal points for the registrant's representation affiliations.")
         return (
             'affiliation_extras_cc_focal_points',
             BooleanField(
@@ -125,7 +122,6 @@ class AffiliationExtrasPlugin(IndicoPlugin):
                 default=False,
                 widget=SwitchWidget(),
                 description=description,
-                render_kw={'disabled': not enabled},
             ),
         )
 
