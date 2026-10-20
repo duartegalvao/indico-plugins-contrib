@@ -132,10 +132,7 @@ class AffiliationExtrasPlugin(IndicoPlugin):
             return
         recipients = {address.lower() for address in email['to'] | email['cc']}
         focal_points = get_registrations_focal_points(registration.registration_form, tuple(form.registration_id.data))
-        for focal in focal_points.get(registration.id, set()):
-            if focal.email.lower() not in recipients:
-                email['cc'].add(focal.email)
-                recipients.add(focal.email.lower())
+        email['cc'] |= {focal.email for focal in focal_points.get(registration.id, ())} - recipients
 
     def _extend_affiliation_schema(self, sender, data, orig, **kwargs):
         if not has_request_context() or request.endpoint != 'users.api_admin_affiliations':
