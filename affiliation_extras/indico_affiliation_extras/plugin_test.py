@@ -111,10 +111,9 @@ def create_focal_event(
 
 
 class TestRegistrationEmailFocalPoints:
-    @pytest.mark.usefixtures('request_context')
+    @pytest.mark.usefixtures('request_context', 'not_testing')
     def test_cc_lookup_queries_are_bounded(
         self,
-        app_context,
         dummy_regform,
         setup_focal_point,
         create_representation_registration,
@@ -131,18 +130,14 @@ class TestRegistrationEmailFocalPoints:
             registration_id=[registration.id for registration in registrations],
         )
         form.ext__affiliation_extras_cc_focal_points.data = True
-        app_context.config['TESTING'] = False
-        try:
-            with count_queries() as count:
-                for registration in registrations:
-                    email = make_email(to_list=registration.email, subject='Update', body='Update')
-                    signals.core.before_notification_send.send(
-                        'registration-custom-email', email=email, registration=registration, form=form
-                    )
-                    assert email['cc'] == {focal.email}
-            assert count() <= 10
-        finally:
-            app_context.config['TESTING'] = True
+        with count_queries() as count:
+            for registration in registrations:
+                email = make_email(to_list=registration.email, subject='Update', body='Update')
+                signals.core.before_notification_send.send(
+                    'registration-custom-email', email=email, registration=registration, form=form
+                )
+                assert email['cc'] == {focal.email}
+        assert count() <= 10
 
     @pytest.mark.usefixtures('request_context')
     @pytest.mark.parametrize('state', ('enabled', 'disabled', 'no_representation'))

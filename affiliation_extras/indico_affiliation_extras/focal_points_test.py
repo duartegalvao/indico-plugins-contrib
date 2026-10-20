@@ -49,20 +49,17 @@ def _focal_query(regform, user):
 
 
 class TestFocalPointQueries:
+    @pytest.mark.usefixtures('not_testing')
     def test_catalog_scope_reuses_query_results(
         self, app_context, dummy_event, create_catalog_affiliations, count_queries
     ):
         affiliations = create_catalog_affiliations(dummy_event)
         expected = {affiliation.id for affiliation in affiliations}
-        app_context.config['TESTING'] = False
-        try:
-            with app_context.test_request_context():
+        with app_context.test_request_context():
+            assert get_event_catalog_affiliation_ids(dummy_event) == expected
+            with count_queries() as count:
                 assert get_event_catalog_affiliation_ids(dummy_event) == expected
-                with count_queries() as count:
-                    assert get_event_catalog_affiliation_ids(dummy_event) == expected
-                assert count() == 0
-        finally:
-            app_context.config['TESTING'] = True
+            assert count() == 0
 
     def test_get_focal_affiliation_ids(self, db, create_user):
         user = create_user(1)
